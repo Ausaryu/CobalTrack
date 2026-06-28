@@ -37,12 +37,58 @@ export interface Exercise {
   muscle_group: string | null;
   equipment: string | null;
   instructions: string | null;
+  translations: string | null;
   image_path: string | null;
   gif_path: string | null;
   source: string | null;
   created_at: string;
   updated_at: string;
   secondary_muscles: SecondaryMuscle[];
+}
+
+export interface ExerciseListResponse {
+  items: Exercise[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ExerciseFiltersResponse {
+  muscle_groups: string[];
+  equipment: string[];
+}
+
+export interface ExerciseCreate {
+  external_id?: string | null;
+  name: string;
+  category?: string | null;
+  body_part?: string | null;
+  target?: string | null;
+  muscle_group?: string | null;
+  equipment?: string | null;
+  instructions?: string | null;
+  translations?: string | null;
+  image_path?: string | null;
+  gif_path?: string | null;
+  source?: string | null;
+  secondary_muscles?: string[];
+}
+
+export type ExerciseUpdate = Partial<ExerciseCreate>;
+
+export interface UserExerciseUpdate {
+  custom_name?: string | null;
+  custom_notes?: string | null;
+  is_hidden?: boolean;
+  is_favorite?: boolean;
+}
+
+export interface UserExercise extends Required<UserExerciseUpdate> {
+  id: number;
+  user_id: number;
+  exercise_id: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WorkoutSet {
@@ -80,6 +126,42 @@ export interface WorkoutSession {
   exercises: WorkoutExercise[];
 }
 
+export interface WorkoutListResponse {
+  items: WorkoutSession[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface WorkoutSetCreate {
+  order_index?: number;
+  weight?: number | null;
+  reps?: number | null;
+  rpe?: number | null;
+  rest_seconds?: number | null;
+  is_warmup?: boolean;
+  is_failure?: boolean;
+  notes?: string | null;
+}
+
+export interface WorkoutExerciseCreate {
+  exercise_id: number;
+  order_index?: number;
+  notes?: string | null;
+  sets?: WorkoutSetCreate[];
+}
+
+export interface WorkoutCreate {
+  name: string;
+  performed_at: string;
+  duration_minutes?: number | null;
+  notes?: string | null;
+  perceived_difficulty?: number | null;
+  exercises?: WorkoutExerciseCreate[];
+}
+
+export type WorkoutUpdate = Partial<WorkoutCreate>;
+
 export interface ProgramExercise {
   id: number;
   program_day_id: number;
@@ -113,6 +195,41 @@ export interface Program {
   updated_at: string;
   days: ProgramDay[];
 }
+
+export interface ProgramListResponse {
+  items: Program[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ProgramExerciseCreate {
+  exercise_id: number;
+  order_index?: number;
+  sets_count: number;
+  min_reps?: number | null;
+  max_reps?: number | null;
+  target_weight?: number | null;
+  target_rpe?: number | null;
+  rest_seconds?: number | null;
+  notes?: string | null;
+}
+
+export interface ProgramDayCreate {
+  name: string;
+  order_index?: number;
+  exercises?: ProgramExerciseCreate[];
+}
+
+export interface ProgramCreate {
+  name: string;
+  goal?: string | null;
+  days_per_week: number;
+  is_active?: boolean;
+  days?: ProgramDayCreate[];
+}
+
+export type ProgramUpdate = Partial<ProgramCreate>;
 
 export interface LastWorkoutSummary {
   id: number;

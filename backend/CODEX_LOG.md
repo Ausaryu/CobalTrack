@@ -370,3 +370,189 @@ Aucune migration n'a été créée car le schéma SQLite n'a pas changé.
 - Le frontend doit stocker le JWT, envoyer `Authorization: Bearer <token>` et supprimer le token lors du logout stateless.
 - Les listes de workouts et programmes retournent actuellement les objets imbriqués complets; ce contrat est pratique pour le MVP mais pourra nécessiter pagination ou réponses allégées si les volumes augmentent.
 - Aucun dossier frontend n'a été modifié pendant cette passe.
+
+## Passe suivante — préparation usage local et serveur
+
+### Date
+
+28 juin 2026
+
+### Objectif
+
+Ajouter le script de sauvegarde SQLite, les variables d'environnement documentées et le `.env.example`.
+
+### Fichiers créés
+
+- `backend/.env.example` : `SECRET_KEY`, `DATABASE_URL`, `BACKEND_CORS_ORIGINS` avec note LAN.
+- `backend/app/scripts/backup_sqlite.py` : copie horodatée de la base SQLite locale.
+- `backend/tests/test_backup_sqlite.py` : trois tests pour le script de backup.
+
+### Script de sauvegarde
+
+```bash
+cd backend
+python -m app.scripts.backup_sqlite
+# → Backup created: /chemin/backend/backups/cobaltrack_20260628_120000.db
+```
+
+La fonction `backup(db_path, backup_dir)` est testable indépendamment des settings. Elle ajoute un compteur si un fichier du même timestamp existe déjà.
+
+### Vérifications
+
+```bash
+pytest -q
+```
+
+```text
+63 passed in 2.03s
+```
+
+```bash
+alembic check
+```
+
+```text
+No new upgrade operations detected.
+```
+
+### Points d'attention
+
+- `backup_sqlite.py` utilise `shutil.copy2` : pour une base en écriture intensive, préférer `sqlite3.connect(src).backup(dest)` pour une copie cohérente.
+- Le dossier `backend/backups/` n'est pas versionné par défaut.
+
+## Passe suivante — scripts racine et documentation serveur
+
+### Date
+
+28 juin 2026
+
+### Objectif
+
+Aucune modification backend dans cette passe. Les scripts racine (`backup:db`, `test:backend` en `python -m pytest`) et la documentation `docs/` ont été finalisés côté racine.
+
+Voir `CODEX_LOG.md` racine.
+
+## Passe suivante — pagination backend des exercices
+
+### Date
+
+28 juin 2026
+
+### Objectif
+
+Ajouter des routes paginées et filtrées pour le référentiel d'exercices, sans casser la route `GET /api/exercises` existante.
+
+### Backend — routes ajoutées
+
+- `GET /api/exercises/search` : recherche paginée avec `q`, `muscle_group`, `equipment`, `limit` (max 100), `offset`. Réponse `ExerciseListResponse` (`items`, `total`, `limit`, `offset`).
+- `GET /api/exercises/filters` : valeurs distinctes de groupes musculaires et d'équipements pour alimenter les dropdowns.
+
+Les nouvelles routes sont placées avant `/{exercise_id}` dans le router pour éviter l'erreur 422 de conversion int.
+
+Le filtre `muscle_group` utilise `COALESCE(muscle_group, target, body_part)` pour être cohérent avec la logique frontend.
+
+### Fichiers modifiés
+
+- `backend/app/schemas/exercise.py` : ajout `ExerciseListResponse`, `ExerciseFiltersResponse`.
+- `backend/app/services/exercise_service.py` : ajout `search_exercises()`, `get_exercise_filters()`.
+- `backend/app/routers/exercises.py` : ajout routes `/search` et `/filters`.
+- `backend/tests/test_api.py` : ajout des nouvelles routes dans le test 401.
+- `backend/tests/test_exercise_search.py` : 20 nouveaux tests.
+- `backend/docs/API.md` : documentation des nouvelles routes.
+
+### Vérifications
+
+```
+pytest -q  →  83 passed
+alembic check  →  No new upgrade operations detected
+```
+
+### Points d'attention
+
+- `GET /api/exercises` reste inchangé pour compatibilité avec WorkoutsPage, ProgramsPage, StatsPage.
+- `limit > 100` retourne 422.
+
+## Passe suivante — pagination séances et programmes
+
+### Date
+
+28 juin 2026
+
+### Objectif
+
+Ajouter des routes de recherche paginée pour les séances et programmes.
+
+### Routes ajoutées
+
+- `GET /api/workouts/search` : `q`, `date_from`, `date_to`, `limit` (max 100, défaut 20), `offset`. Tri `performed_at DESC, id DESC`. Réponse `WorkoutListResponse`.
+- `GET /api/programs/search` : `q` (nom ou objectif), `is_active`, `limit`, `offset`. Tri `is_active DESC, id DESC`. Réponse `ProgramListResponse`.
+
+### Fichiers modifiés
+
+- `app/schemas/workout.py` : `WorkoutListResponse`.
+- `app/schemas/program.py` : `ProgramListResponse`.
+- `app/services/workout_service.py` : `search_workouts()`.
+- `app/services/program_service.py` : `search_programs()`.
+- `app/routers/workouts.py` : route `/search` placée avant `/{workout_id}`.
+- `app/routers/programs.py` : route `/search` placée avant `/{program_id}`.
+- `tests/test_api.py` : nouvelles routes dans le test 401.
+- `tests/test_workout_program_search.py` (nouveau) : 22 tests.
+
+### Vérifications
+
+```
+pytest -q  →  105 passed
+alembic check  →  No new upgrade operations detected
+```
+
+## Passe suivante — traductions multilingues des exercices
+
+### Date
+
+28 juin 2026
+
+### Changements
+
+- ajout de `exercises.translations` (`TEXT`, nullable) via la migration `20260628_0002` ;
+- ajout du champ aux modèles SQLAlchemy et schémas `ExerciseCreate`, `ExerciseUpdate`, `ExerciseRead` ;
+- import des dictionnaires localisés sans jamais stringifier un dictionnaire dans un champ visible ;
+- conservation de l'anglais dans les champs natifs lorsqu'il existe, sinon première langue non vide ;
+- support localisé optionnel de `secondary_muscles` sous forme de tableaux dans le JSON ;
+- commande `python -m app.scripts.import_exercises --repair-translations`, avec `--repair-instructions` conservé comme alias ;
+- réparation des anciens champs visibles contenant du JSON sérialisé et fusion dans `translations`.
+
+### Format
+
+`translations` stocke un JSON texte de forme `{"fr":{"name":"…"},"en":{"name":"…"}}`. Aucun service de traduction automatique ni aucune API externe ne sont utilisés. Les filtres restent basés sur les champs natifs anglais.
+
+### Vérifications
+
+```text
+pytest -q         → 109 passed
+alembic check     → No new upgrade operations detected
+npm test:backend  → 109 passed
+```
+
+## Passe suivante — recherche normalisée et multilingue
+
+### Date
+
+28 juin 2026
+
+### Changements
+
+- `GET /api/exercises/search` cherche dans les champs textuels natifs et les traductions JSON ;
+- normalisation par `casefold`, suppression des accents et des caractères non alphanumériques ;
+- `pull-up`, `pull up`, `pull_up` et `Pull Up` deviennent équivalents ;
+- filtres SQL groupe/équipement conservés avant le filtrage Python ;
+- `total`, `offset` et `limit` calculés après la correspondance normalisée.
+- classement des résultats : nom exact, nom partiel, puis autres champs textuels.
+
+### Vérification
+
+```text
+pytest tests/test_exercise_search.py -q  → 29 passed avant ajout du classement
+npm run test:backend                     → 120 passed avant ajout du classement
+py_compile                               → OK après ajout du classement
+recherche DB locale `traction`, limit=1 → `pull-up` en premier résultat
+```

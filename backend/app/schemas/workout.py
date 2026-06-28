@@ -39,6 +39,13 @@ class WorkoutUpdate(BaseModel):
     exercises: list[WorkoutExerciseInput] | None = None
 
 
+class WorkoutListResponse(BaseModel):
+    items: list["WorkoutRead"]
+    total: int
+    limit: int
+    offset: int
+
+
 class WorkoutSetRead(WorkoutSetInput):
     model_config = ConfigDict(from_attributes=True)
 

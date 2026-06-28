@@ -125,13 +125,57 @@ Pour une validation `422`, `detail` est une liste structurée par Pydantic. Code
 
 Les exercices sont globaux. Ils ne contiennent jamais de `user_id`. Les personnalisations sont stockées séparément par utilisateur.
 
+Les champs natifs (`name`, `category`, `body_part`, `target`, `muscle_group`, `equipment`, `instructions`) restent en anglais lorsqu'une valeur anglaise existe. Le champ nullable `translations` contient un document JSON sérialisé en texte, organisé par langue puis par champ. La recherche interroge les champs natifs et les traductions ; les filtres restent basés sur les champs natifs.
+
 | Méthode | URL | Auth | Body | Réponse | Erreurs principales |
 |---|---|---|---|---|---|
-| `GET` | `/api/exercises` | Bearer | Aucun | Liste de `ExerciseRead` | `401` |
+| `GET` | `/api/exercises` | Bearer | Aucun | Liste complète de `ExerciseRead` (compatibilité) | `401` |
+| `GET` | `/api/exercises/search` | Bearer | Query params | `ExerciseListResponse` paginé | `401`, `422` |
+| `GET` | `/api/exercises/filters` | Bearer | Aucun | `ExerciseFiltersResponse` | `401` |
 | `POST` | `/api/exercises` | Bearer | `ExerciseCreate` | Exercice créé, `201` | `401`, `409`, `422` |
 | `GET` | `/api/exercises/{exercise_id}` | Bearer | Aucun | `ExerciseRead` | `401`, `404` |
 | `PUT` | `/api/exercises/{exercise_id}` | Bearer | Champs à modifier | `ExerciseRead` | `401`, `404`, `409`, `422` |
 | `DELETE` | `/api/exercises/{exercise_id}` | Bearer | Aucun | Aucun contenu, `204` | `401`, `404`, `409` |
+
+### Recherche paginée — `GET /api/exercises/search`
+
+Query params optionnels :
+
+| Paramètre | Type | Défaut | Description |
+|---|---|---|---|
+| `q` | string | — | Recherche normalisée dans les champs natifs et traduits ; ignore casse, accents, espaces et ponctuation |
+| `muscle_group` | string | — | Filtre par groupe musculaire (COALESCE muscle_group, target, body_part) |
+| `equipment` | string | — | Filtre par équipement |
+| `limit` | int 1–100 | 50 | Nombre de résultats |
+| `offset` | int ≥ 0 | 0 | Décalage pour la pagination |
+
+Réponse `ExerciseListResponse` :
+
+```json
+{
+  "items": [ /* ExerciseRead[] */ ],
+  "total": 1324,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### Filtres disponibles — `GET /api/exercises/filters`
+
+Réponse `ExerciseFiltersResponse` :
+
+```json
+{
+  "muscle_groups": ["back", "chest", "legs"],
+  "equipment": ["barbell", "dumbbell", "machine"]
+}
+```
+
+Les valeurs proviennent de `COALESCE(muscle_group, target, body_part)` pour les groupes, et directement du champ `equipment`.
+
+### Compatibilité — `GET /api/exercises`
+
+Cette route retourne toujours la liste complète (sans pagination). Elle reste disponible pour les consommateurs qui en dépendent (WorkoutsPage, ProgramsPage, StatsPage). La page Exercices et le sélecteur d'exercices utilisent désormais `/search`.
 
 Body de création complet, avec tous les champs sauf `name` optionnels :
 
@@ -145,6 +189,7 @@ Body de création complet, avec tous les champs sauf `name` optionnels :
   "muscle_group": "chest",
   "equipment": "barbell",
   "instructions": "Keep the shoulder blades retracted.",
+  "translations": "{\"en\":{\"name\":\"Bench press\"},\"fr\":{\"name\":\"Développé couché\"}}",
   "image_path": null,
   "gif_path": null,
   "source": "exercise-db",
@@ -165,6 +210,7 @@ Réponse simplifiée :
   "muscle_group": "chest",
   "equipment": "barbell",
   "instructions": "Keep the shoulder blades retracted.",
+  "translations": "{\"en\":{\"name\":\"Bench press\"},\"fr\":{\"name\":\"Développé couché\"}}",
   "image_path": null,
   "gif_path": null,
   "source": "exercise-db",

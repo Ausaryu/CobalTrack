@@ -1,11 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.schemas.exercise import (
     ExerciseCreate,
+    ExerciseFiltersResponse,
+    ExerciseListResponse,
     ExerciseRead,
     ExerciseUpdate,
     UserExerciseRead,
@@ -29,6 +31,27 @@ def create_exercise(
     payload: ExerciseCreate, db: DbSession, _current_user: CurrentUser
 ) -> ExerciseRead:
     return exercise_service.create_exercise(db, payload)  # type: ignore[return-value]
+
+
+# Static sub-paths must come before /{exercise_id} to avoid int-coercion 422s
+@router.get("/search", response_model=ExerciseListResponse)
+def search_exercises(
+    db: DbSession,
+    _current_user: CurrentUser,
+    q: Annotated[str | None, Query()] = None,
+    muscle_group: Annotated[str | None, Query()] = None,
+    equipment: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ExerciseListResponse:
+    items, total = exercise_service.search_exercises(db, q, muscle_group, equipment, limit, offset)
+    return ExerciseListResponse(items=items, total=total, limit=limit, offset=offset)  # type: ignore[return-value]
+
+
+@router.get("/filters", response_model=ExerciseFiltersResponse)
+def get_filters(db: DbSession, _current_user: CurrentUser) -> ExerciseFiltersResponse:
+    filters = exercise_service.get_exercise_filters(db)
+    return ExerciseFiltersResponse(**filters)
 
 
 @router.get("/{exercise_id}", response_model=ExerciseRead)
@@ -87,4 +110,3 @@ def delete_personalization(
 ) -> Response:
     exercise_service.delete_user_exercise(db, current_user.id, exercise_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-

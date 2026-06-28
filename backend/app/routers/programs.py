@@ -1,10 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.program import ProgramCreate, ProgramRead, ProgramUpdate
+from app.schemas.program import ProgramCreate, ProgramListResponse, ProgramRead, ProgramUpdate
 from app.services import program_service
 from app.services.auth_service import CurrentUser
 
@@ -23,6 +23,22 @@ def create_program(
     payload: ProgramCreate, db: DbSession, current_user: CurrentUser
 ) -> ProgramRead:
     return program_service.create_program(db, current_user.id, payload)  # type: ignore[return-value]
+
+
+# Must be declared before /{program_id} to avoid int-coercion 422
+@router.get("/search", response_model=ProgramListResponse)
+def search_programs(
+    db: DbSession,
+    current_user: CurrentUser,
+    q: Annotated[str | None, Query()] = None,
+    is_active: Annotated[bool | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> ProgramListResponse:
+    items, total = program_service.search_programs(
+        db, current_user.id, q, is_active, limit, offset
+    )
+    return ProgramListResponse(items=items, total=total, limit=limit, offset=offset)  # type: ignore[return-value]
 
 
 @router.get("/{program_id}", response_model=ProgramRead)
@@ -50,4 +66,3 @@ def delete_program(
 ) -> Response:
     program_service.delete_program(db, current_user.id, program_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-

@@ -47,6 +47,13 @@ class ProgramUpdate(BaseModel):
     days: list[ProgramDayInput] | None = None
 
 
+class ProgramListResponse(BaseModel):
+    items: list["ProgramRead"]
+    total: int
+    limit: int
+    offset: int
+
+
 class ProgramExerciseRead(ProgramExerciseInput):
     model_config = ConfigDict(from_attributes=True)
 

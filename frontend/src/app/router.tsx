@@ -1,6 +1,7 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 
 import { DashboardPage } from "../features/dashboard/DashboardPage";
+import { ExerciseDetailPage } from "../features/exercises/ExerciseDetailPage";
 import { ExercisesPage } from "../features/exercises/ExercisesPage";
 import { GuestRoute, ProtectedRoute } from "../features/auth/ProtectedRoute";
 import { LoginPage } from "../features/auth/LoginPage";
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
           { path: "/dashboard", element: <DashboardPage /> },
           { path: "/workouts", element: <WorkoutsPage /> },
           { path: "/exercises", element: <ExercisesPage /> },
+          { path: "/exercises/:exerciseId", element: <ExerciseDetailPage /> },
           { path: "/programs", element: <ProgramsPage /> },
           { path: "/stats", element: <StatsPage /> },
           { path: "/profile", element: <ProfilePage /> },

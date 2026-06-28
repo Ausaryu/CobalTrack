@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.exercise import Exercise
@@ -36,6 +36,27 @@ def _build_days(items: list[ProgramDayInput]) -> list[ProgramDay]:
 
 def _exercise_ids(items: list[ProgramDayInput]) -> set[int]:
     return {exercise.exercise_id for day in items for exercise in day.exercises}
+
+
+def search_programs(
+    db: Session,
+    user_id: int,
+    q: str | None = None,
+    is_active: bool | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[list[Program], int]:
+    stmt = select(Program).where(Program.user_id == user_id)
+    if q:
+        stmt = stmt.where(
+            or_(Program.name.ilike(f"%{q}%"), Program.goal.ilike(f"%{q}%"))
+        )
+    if is_active is not None:
+        stmt = stmt.where(Program.is_active == is_active)
+    stmt = stmt.order_by(Program.is_active.desc(), Program.id.desc())
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    items = list(db.scalars(stmt.offset(offset).limit(limit)).all())
+    return items, total
 
 
 def list_programs(db: Session, user_id: int) -> list[Program]:

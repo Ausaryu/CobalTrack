@@ -4,6 +4,12 @@ CobalTrack est une application web de suivi d'entraînement permettant de gérer
 
 L'application repose sur une API REST, une interface web responsive et une base de données SQLite pour le démarrage.
 
+## Documentation
+
+- [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md) : installation et lancement local.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) : déploiement sur serveur personnel.
+- [`backend/docs/API.md`](backend/docs/API.md) : contrat API REST.
+
 ## Objectif
 
 L'objectif de CobalTrack est de permettre à un utilisateur de :

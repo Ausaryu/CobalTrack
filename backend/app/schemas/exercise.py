@@ -12,6 +12,7 @@ class ExerciseCreate(BaseModel):
     muscle_group: str | None = Field(default=None, max_length=100)
     equipment: str | None = Field(default=None, max_length=100)
     instructions: str | None = None
+    translations: str | None = None
     image_path: str | None = Field(default=None, max_length=500)
     gif_path: str | None = Field(default=None, max_length=500)
     source: str | None = Field(default=None, max_length=255)
@@ -42,6 +43,7 @@ class ExerciseUpdate(BaseModel):
     muscle_group: str | None = Field(default=None, max_length=100)
     equipment: str | None = Field(default=None, max_length=100)
     instructions: str | None = None
+    translations: str | None = None
     image_path: str | None = Field(default=None, max_length=500)
     gif_path: str | None = Field(default=None, max_length=500)
     source: str | None = Field(default=None, max_length=255)
@@ -84,12 +86,25 @@ class ExerciseRead(BaseModel):
     muscle_group: str | None
     equipment: str | None
     instructions: str | None
+    translations: str | None
     image_path: str | None
     gif_path: str | None
     source: str | None
     created_at: datetime
     updated_at: datetime
     secondary_muscles: list[SecondaryMuscleRead]
+
+
+class ExerciseListResponse(BaseModel):
+    items: list[ExerciseRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class ExerciseFiltersResponse(BaseModel):
+    muscle_groups: list[str]
+    equipment: list[str]
 
 
 class UserExerciseUpdate(BaseModel):

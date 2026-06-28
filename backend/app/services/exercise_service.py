@@ -1,5 +1,10 @@
+import json
+import unicodedata
+from collections.abc import Iterator
+from typing import Any
+
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -7,8 +12,151 @@ from app.models.exercise import Exercise, ExerciseSecondaryMuscle, UserExercise
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, UserExerciseUpdate
 
 
+_SEARCHABLE_TRANSLATION_FIELDS = {
+    "name",
+    "category",
+    "body_part",
+    "target",
+    "muscle_group",
+    "equipment",
+    "instructions",
+}
+
+
+def normalize_search_text(value: str) -> str:
+    """Normalize text so punctuation, spacing, case and accents do not affect matching."""
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    return "".join(
+        character
+        for character in decomposed
+        if character.isalnum() and not unicodedata.combining(character)
+    )
+
+
+def _iter_text_values(value: Any) -> Iterator[str]:
+    if isinstance(value, str):
+        if value.strip():
+            yield value
+        return
+    if isinstance(value, list):
+        for item in value:
+            yield from _iter_text_values(item)
+
+
+def _localized_translation_fields(
+    raw_translations: str | None,
+) -> Iterator[dict[str, Any]]:
+    if not raw_translations:
+        return
+    try:
+        translations = json.loads(raw_translations)
+    except (json.JSONDecodeError, TypeError):
+        return
+    if not isinstance(translations, dict):
+        return
+
+    for localized_fields in translations.values():
+        if isinstance(localized_fields, dict):
+            yield localized_fields
+
+
+def _translation_search_values(raw_translations: str | None) -> Iterator[str]:
+    for localized_fields in _localized_translation_fields(raw_translations):
+        for field in _SEARCHABLE_TRANSLATION_FIELDS:
+            yield from _iter_text_values(localized_fields.get(field))
+
+
+def _translated_name_values(raw_translations: str | None) -> Iterator[str]:
+    for localized_fields in _localized_translation_fields(raw_translations):
+        yield from _iter_text_values(localized_fields.get("name"))
+
+
+def _exercise_search_values(exercise: Exercise) -> Iterator[str]:
+    for value in (
+        exercise.name,
+        exercise.category,
+        exercise.body_part,
+        exercise.target,
+        exercise.muscle_group,
+        exercise.equipment,
+        exercise.instructions,
+    ):
+        if value:
+            yield value
+    yield from _translation_search_values(exercise.translations)
+
+
+def _exercise_search_rank(exercise: Exercise, normalized_query: str) -> int | None:
+    normalized_names = [
+        normalize_search_text(value)
+        for value in (exercise.name, *_translated_name_values(exercise.translations))
+    ]
+    if normalized_query in normalized_names:
+        return 0
+    if any(normalized_query in name for name in normalized_names):
+        return 1
+    if any(
+        normalized_query in normalize_search_text(value)
+        for value in _exercise_search_values(exercise)
+    ):
+        return 2
+    return None
+
+
 def list_exercises(db: Session) -> list[Exercise]:
     return list(db.scalars(select(Exercise).order_by(Exercise.name, Exercise.id)).all())
+
+
+def search_exercises(
+    db: Session,
+    q: str | None = None,
+    muscle_group: str | None = None,
+    equipment: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[Exercise], int]:
+    stmt = select(Exercise)
+    if muscle_group:
+        coalesce_group = func.coalesce(Exercise.muscle_group, Exercise.target, Exercise.body_part)
+        stmt = stmt.where(coalesce_group == muscle_group)
+    if equipment:
+        stmt = stmt.where(Exercise.equipment == equipment)
+    stmt = stmt.order_by(Exercise.name, Exercise.id)
+
+    normalized_query = normalize_search_text(q or "")
+    if normalized_query:
+        candidates = list(db.scalars(stmt).all())
+        ranked_matches = [
+            (rank, exercise)
+            for exercise in candidates
+            if (rank := _exercise_search_rank(exercise, normalized_query)) is not None
+        ]
+        ranked_matches.sort(key=lambda match: match[0])
+        matching_items = [exercise for _, exercise in ranked_matches]
+        return matching_items[offset : offset + limit], len(matching_items)
+
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    items = list(db.scalars(stmt.offset(offset).limit(limit)).all())
+    return items, total
+
+
+def get_exercise_filters(db: Session) -> dict[str, list[str]]:
+    coalesce_group = func.coalesce(Exercise.muscle_group, Exercise.target, Exercise.body_part)
+    muscle_groups = list(
+        db.scalars(
+            select(distinct(coalesce_group))
+            .where(coalesce_group.isnot(None))
+            .order_by(coalesce_group)
+        ).all()
+    )
+    equipment_values = list(
+        db.scalars(
+            select(distinct(Exercise.equipment))
+            .where(Exercise.equipment.isnot(None))
+            .order_by(Exercise.equipment)
+        ).all()
+    )
+    return {"muscle_groups": muscle_groups, "equipment": equipment_values}
 
 
 def get_exercise(db: Session, exercise_id: int) -> Exercise:

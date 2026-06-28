@@ -1,0 +1,28 @@
+{
+  "name": "cobaltrack",
+  "version": "1.0.0",
+  "description": "CobalTrack est une application web de suivi d'entraînement permettant de gérer ses exercices, séances, programmes et séries.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0",
+    "dev:frontend": "cd frontend && npm run dev -- --host 0.0.0.0",
+    "build": "cd frontend && npm run build",
+    "test:backend": "cd backend && .venv/bin/python -m pytest -q",
+    "backup:db": "cd backend && .venv/bin/python -m app.scripts.backup_sqlite"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ausaryu/CobalTrack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ausaryu/CobalTrack/issues"
+  },
+  "homepage": "https://github.com/Ausaryu/CobalTrack#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}

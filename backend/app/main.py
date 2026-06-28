@@ -1,9 +1,14 @@
+from pathlib import Path
+
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.routers import auth, exercises, programs, stats, workouts
 from app.schemas.config import PublicConfig
+
+_MEDIA_DIR = Path(__file__).parent.parent / "media"
 
 
 def create_app() -> FastAPI:
@@ -15,6 +20,8 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
     )
+    _MEDIA_DIR.mkdir(exist_ok=True)
+    application.mount("/media", StaticFiles(directory=str(_MEDIA_DIR)), name="media")
     api_router = APIRouter(prefix=settings.api_prefix)
 
     @api_router.get("/health", tags=["health"])

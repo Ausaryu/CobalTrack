@@ -1,5 +1,7 @@
+from datetime import date
+
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.exercise import Exercise
@@ -31,6 +33,28 @@ def _build_exercises(items: list[WorkoutExerciseInput]) -> list[WorkoutExercise]
         )
         for item in items
     ]
+
+
+def search_workouts(
+    db: Session,
+    user_id: int,
+    q: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> tuple[list[WorkoutSession], int]:
+    stmt = select(WorkoutSession).where(WorkoutSession.user_id == user_id)
+    if q:
+        stmt = stmt.where(WorkoutSession.name.ilike(f"%{q}%"))
+    if date_from:
+        stmt = stmt.where(WorkoutSession.performed_at >= date_from)
+    if date_to:
+        stmt = stmt.where(WorkoutSession.performed_at <= date_to)
+    stmt = stmt.order_by(WorkoutSession.performed_at.desc(), WorkoutSession.id.desc())
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    items = list(db.scalars(stmt.offset(offset).limit(limit)).all())
+    return items, total
 
 
 def list_workouts(db: Session, user_id: int) -> list[WorkoutSession]:

@@ -24,6 +24,7 @@ class Exercise(TimestampMixin, Base):
     muscle_group: Mapped[str | None] = mapped_column(String(100))
     equipment: Mapped[str | None] = mapped_column(String(100))
     instructions: Mapped[str | None] = mapped_column(Text)
+    translations: Mapped[str | None] = mapped_column(Text)
     image_path: Mapped[str | None] = mapped_column(String(500))
     gif_path: Mapped[str | None] = mapped_column(String(500))
     source: Mapped[str | None] = mapped_column(String(255))
@@ -77,4 +78,3 @@ class UserExercise(TimestampMixin, Base):
 
     user: Mapped["User"] = relationship(back_populates="exercise_preferences")
     exercise: Mapped[Exercise] = relationship(back_populates="user_preferences")
-
