@@ -110,16 +110,15 @@ def test_nested_response_shapes_are_frontend_ready(client: TestClient) -> None:
 
 def test_common_api_errors_are_clear(client: TestClient) -> None:
     headers = register(client, "errors@example.com")
-    duplicate_email = client.post(
+    duplicate_username = client.post(
         "/api/auth/register",
         json={
-            "email": "errors@example.com",
-            "username": "duplicate",
+            "username": "ERRORS",
             "password": "password123",
         },
     )
-    assert duplicate_email.status_code == 409
-    assert duplicate_email.json()["detail"] == "An account with this email already exists"
+    assert duplicate_username.status_code == 409
+    assert duplicate_username.json()["detail"] == "An account with this username already exists"
 
     missing = client.get("/api/exercises/999", headers=headers)
     assert missing.status_code == 404

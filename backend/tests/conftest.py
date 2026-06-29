@@ -43,11 +43,11 @@ def client(db: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides.clear()
 
 
-def register(client: TestClient, email: str = "user@example.com") -> dict[str, str]:
+def register(client: TestClient, username: str = "user") -> dict[str, str]:
+    normalized_username = username.split("@", maxsplit=1)[0]
     response = client.post(
         "/api/auth/register",
-        json={"email": email, "username": email.split("@")[0], "password": "password123"},
+        json={"username": normalized_username, "password": "password123"},
     )
     assert response.status_code == 201, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
-

@@ -15,8 +15,9 @@ type ErrorDetail =
   | undefined;
 
 const FRIENDLY_ERRORS: Record<string, string> = {
-  "An account with this email already exists": "Un compte utilise déjà cette adresse email.",
-  "Invalid email or password": "Email ou mot de passe incorrect.",
+  "An account with this username already exists": "Ce nom d’utilisateur est déjà utilisé.",
+  "Invalid username or password": "Nom d’utilisateur ou mot de passe incorrect.",
+  "Administrator privileges required": "Cette action est réservée aux administrateurs.",
   "Invalid or expired authentication token": "Votre session a expiré. Reconnectez-vous.",
   "Exercise not found": "Exercice introuvable.",
   "Workout not found": "Séance introuvable.",

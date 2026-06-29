@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../features/auth/authStore";
+import { AdminViewProvider, useAdminView } from "../hooks/useAdminView";
 
 const navigation = [
   { to: "/dashboard", label: "Dashboard", marker: "D" },
@@ -12,8 +13,9 @@ const navigation = [
   { to: "/profile", label: "Profil", marker: "U" },
 ];
 
-export function AppLayout() {
+function AppLayoutContent() {
   const { user, logout } = useAuth();
+  const { isAdminView, setIsAdminView } = useAdminView();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -54,9 +56,19 @@ export function AppLayout() {
             </span>
             <span>
               <strong>{user?.username}</strong>
-              <small>{user?.email}</small>
+              <small>{user?.is_admin ? "Administrateur" : "Utilisateur"}</small>
             </span>
           </div>
+          {user?.is_admin ? (
+            <label className="admin-view-toggle">
+              <input
+                type="checkbox"
+                checked={isAdminView}
+                onChange={(event) => setIsAdminView(event.target.checked)}
+              />
+              <span>Vue admin</span>
+            </label>
+          ) : null}
           <button className="button button-ghost" onClick={handleLogout}>
             Se déconnecter
           </button>
@@ -75,5 +87,15 @@ export function AppLayout() {
         </main>
       </div>
     </div>
+  );
+}
+
+export function AppLayout() {
+  const { user } = useAuth();
+
+  return (
+    <AdminViewProvider canEnable={user?.is_admin === true}>
+      <AppLayoutContent />
+    </AdminViewProvider>
   );
 }

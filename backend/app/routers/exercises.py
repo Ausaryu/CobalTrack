@@ -14,7 +14,7 @@ from app.schemas.exercise import (
     UserExerciseUpdate,
 )
 from app.services import exercise_service
-from app.services.auth_service import CurrentUser
+from app.services.auth_service import AdminUser, CurrentUser
 
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
@@ -28,7 +28,7 @@ def list_exercises(db: DbSession, _current_user: CurrentUser) -> list[ExerciseRe
 
 @router.post("", response_model=ExerciseRead, status_code=status.HTTP_201_CREATED)
 def create_exercise(
-    payload: ExerciseCreate, db: DbSession, _current_user: CurrentUser
+    payload: ExerciseCreate, db: DbSession, _admin_user: AdminUser
 ) -> ExerciseRead:
     return exercise_service.create_exercise(db, payload)  # type: ignore[return-value]
 
@@ -37,14 +37,24 @@ def create_exercise(
 @router.get("/search", response_model=ExerciseListResponse)
 def search_exercises(
     db: DbSession,
-    _current_user: CurrentUser,
+    current_user: CurrentUser,
     q: Annotated[str | None, Query()] = None,
     muscle_group: Annotated[str | None, Query()] = None,
     equipment: Annotated[str | None, Query()] = None,
+    favorite_only: Annotated[bool, Query()] = False,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> ExerciseListResponse:
-    items, total = exercise_service.search_exercises(db, q, muscle_group, equipment, limit, offset)
+    items, total = exercise_service.search_exercises(
+        db,
+        current_user.id,
+        q=q,
+        muscle_group=muscle_group,
+        equipment=equipment,
+        favorite_only=favorite_only,
+        limit=limit,
+        offset=offset,
+    )
     return ExerciseListResponse(items=items, total=total, limit=limit, offset=offset)  # type: ignore[return-value]
 
 
@@ -66,14 +76,14 @@ def update_exercise(
     exercise_id: int,
     payload: ExerciseUpdate,
     db: DbSession,
-    _current_user: CurrentUser,
+    _admin_user: AdminUser,
 ) -> ExerciseRead:
     return exercise_service.update_exercise(db, exercise_id, payload)  # type: ignore[return-value]
 
 
 @router.delete("/{exercise_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_exercise(
-    exercise_id: int, db: DbSession, _current_user: CurrentUser
+    exercise_id: int, db: DbSession, _admin_user: AdminUser
 ) -> Response:
     exercise_service.delete_exercise(db, exercise_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

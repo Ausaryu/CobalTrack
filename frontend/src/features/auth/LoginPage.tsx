@@ -7,7 +7,7 @@ import { useAuth } from "./authStore";
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -17,7 +17,7 @@ export function LoginPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await login({ email, password });
+      await login({ username, password });
       navigate("/dashboard", { replace: true });
     } catch (caughtError) {
       setError(
@@ -40,12 +40,12 @@ export function LoginPage() {
 
         <form className="form-stack" onSubmit={handleSubmit}>
           <label>
-            Email
+            Nom d’utilisateur
             <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
               required
             />
           </label>

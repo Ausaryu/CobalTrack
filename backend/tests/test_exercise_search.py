@@ -237,6 +237,55 @@ def test_search_pagination_offset(client: TestClient, auth: dict) -> None:
     assert page1["total"] == page2["total"] == 5
 
 
+def test_search_favorites_are_filtered_before_pagination(
+    client: TestClient, auth: dict
+) -> None:
+    exercises = [_create(client, auth, name=f"Exercise {i:02d}") for i in range(6)]
+    favorite_ids = {exercises[index]["id"] for index in (0, 2, 3, 5)}
+    for exercise_id in favorite_ids:
+        response = client.put(
+            f"/api/exercises/{exercise_id}/personalization",
+            headers=auth,
+            json={"is_favorite": True},
+        )
+        assert response.status_code == 200
+
+    first_page = client.get(
+        "/api/exercises/search?favorite_only=true&limit=2&offset=0",
+        headers=auth,
+    ).json()
+    second_page = client.get(
+        "/api/exercises/search?favorite_only=true&limit=2&offset=2",
+        headers=auth,
+    ).json()
+
+    assert first_page["total"] == second_page["total"] == 4
+    assert {item["id"] for item in first_page["items"]}.isdisjoint(
+        {item["id"] for item in second_page["items"]}
+    )
+    assert {
+        item["id"] for item in first_page["items"] + second_page["items"]
+    } == favorite_ids
+
+
+def test_search_favorites_are_scoped_to_current_user(client: TestClient) -> None:
+    owner = register(client, "favorites-owner@example.com")
+    other = register(client, "favorites-other@example.com")
+    exercise = _create(client, owner, name="Owner favorite")
+    client.put(
+        f"/api/exercises/{exercise['id']}/personalization",
+        headers=owner,
+        json={"is_favorite": True},
+    )
+
+    assert client.get(
+        "/api/exercises/search?favorite_only=true", headers=owner
+    ).json()["total"] == 1
+    assert client.get(
+        "/api/exercises/search?favorite_only=true", headers=other
+    ).json()["total"] == 0
+
+
 def test_search_limit_max_100(client: TestClient, auth: dict) -> None:
     resp = client.get("/api/exercises/search?limit=101", headers=auth)
     assert resp.status_code == 422

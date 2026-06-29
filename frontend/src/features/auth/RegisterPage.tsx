@@ -7,7 +7,6 @@ import { useAuth } from "./authStore";
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +17,7 @@ export function RegisterPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await register({ email, username, password });
+      await register({ username, password });
       navigate("/dashboard", { replace: true });
     } catch (caughtError) {
       setError(
@@ -47,16 +46,6 @@ export function RegisterPage() {
               autoComplete="username"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Email
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
               required
             />
           </label>

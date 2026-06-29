@@ -109,13 +109,23 @@ def list_exercises(db: Session) -> list[Exercise]:
 
 def search_exercises(
     db: Session,
+    user_id: int,
     q: str | None = None,
     muscle_group: str | None = None,
     equipment: str | None = None,
+    favorite_only: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> tuple[list[Exercise], int]:
     stmt = select(Exercise)
+    if favorite_only:
+        stmt = stmt.join(
+            UserExercise,
+            UserExercise.exercise_id == Exercise.id,
+        ).where(
+            UserExercise.user_id == user_id,
+            UserExercise.is_favorite.is_(True),
+        )
     if muscle_group:
         coalesce_group = func.coalesce(Exercise.muscle_group, Exercise.target, Exercise.body_part)
         stmt = stmt.where(coalesce_group == muscle_group)

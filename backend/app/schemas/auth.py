@@ -1,16 +1,15 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 from app.schemas.user import UserRead
 
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
     username: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=8, max_length=128)
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str = Field(min_length=1, max_length=80)
     password: str = Field(min_length=1, max_length=128)
 
 
@@ -22,4 +21,3 @@ class TokenResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     message: str = "Logged out"
-

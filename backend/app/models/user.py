@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String
+from sqlalchemy import Boolean, String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -16,10 +16,15 @@ class User(TimestampMixin, Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
-    username: Mapped[str] = mapped_column(String(80))
+    username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=false(),
+        nullable=False,
+    )
 
     exercise_preferences: Mapped[list["UserExercise"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -30,4 +35,3 @@ class User(TimestampMixin, Base):
     programs: Mapped[list["Program"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-

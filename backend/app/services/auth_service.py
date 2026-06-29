@@ -15,17 +15,18 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def register_user(db: Session, payload: RegisterRequest) -> User:
-    normalized_email = str(payload.email).strip().lower()
-    if db.scalar(select(User).where(User.email == normalized_email)):
+    normalized_username = payload.username.strip().lower()
+    if db.scalar(select(User).where(User.username == normalized_username)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists",
+            detail="An account with this username already exists",
         )
 
+    is_first_user = db.scalar(select(User.id).limit(1)) is None
     user = User(
-        email=normalized_email,
-        username=payload.username.strip(),
+        username=normalized_username,
         hashed_password=hash_password(payload.password),
+        is_admin=is_first_user,
     )
     db.add(user)
     db.commit()
@@ -33,8 +34,8 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
     return user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> User | None:
-    user = db.scalar(select(User).where(User.email == email.strip().lower()))
+def authenticate_user(db: Session, username: str, password: str) -> User | None:
+    user = db.scalar(select(User).where(User.username == username.strip().lower()))
     if user is None or not verify_password(password, user.hashed_password):
         return None
     return user
@@ -61,3 +62,14 @@ def get_current_user(
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
+
+def require_admin(current_user: CurrentUser) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator privileges required",
+        )
+    return current_user
+
+
+AdminUser = Annotated[User, Depends(require_admin)]

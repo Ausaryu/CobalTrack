@@ -35,7 +35,7 @@ export function ProfilePage() {
         <div>
           <p className="eyebrow">Nom d’utilisateur</p>
           <h2>{profileQuery.data.username}</h2>
-          <p>{profileQuery.data.email}</p>
+          <p>{profileQuery.data.is_admin ? "Administrateur" : "Utilisateur"}</p>
           <span className="status-dot active">Compte actif</span>
         </div>
       </section>

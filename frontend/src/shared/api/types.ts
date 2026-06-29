@@ -1,8 +1,8 @@
 export interface User {
   id: number;
-  email: string;
   username: string;
   is_active: boolean;
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -14,13 +14,11 @@ export interface AuthToken {
 }
 
 export interface LoginPayload {
-  email: string;
+  username: string;
   password: string;
 }
 
-export interface RegisterPayload extends LoginPayload {
-  username: string;
-}
+export type RegisterPayload = LoginPayload;
 
 export interface SecondaryMuscle {
   id: number;

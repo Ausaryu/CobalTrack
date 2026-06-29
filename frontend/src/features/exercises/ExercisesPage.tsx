@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { apiClient, ApiError } from "../../shared/api/client";
@@ -8,6 +8,7 @@ import type {
   Exercise,
   ExerciseCreate,
   UserExercise,
+  UserExerciseUpdate,
 } from "../../shared/api/types";
 import { Button } from "../../shared/components/Button";
 import { CheckboxField } from "../../shared/components/CheckboxField";
@@ -19,6 +20,7 @@ import { Modal } from "../../shared/components/Modal";
 import { PageHeader } from "../../shared/components/PageHeader";
 import { SelectField } from "../../shared/components/SelectField";
 import { TextField } from "../../shared/components/TextField";
+import { useAdminView } from "../../shared/hooks/useAdminView";
 import {
   getPreferredExerciseLanguage,
   getTranslatedExerciseField,
@@ -28,18 +30,35 @@ import { ExerciseForm } from "./ExerciseForm";
 import { ExercisePersonalization } from "./ExercisePersonalization";
 
 type EditorState = { mode: "create" } | { mode: "edit"; exercise: Exercise } | null;
+type PersonalizationFlag = "is_favorite" | "is_hidden";
 
 function getExerciseMuscleLabel(exercise: Exercise) {
   return exercise.muscle_group || exercise.target || exercise.body_part || exercise.category;
 }
 
-function ExerciseMedia({ exercise, displayName }: { exercise: Exercise; displayName: string }) {
+function ExerciseMedia({
+  exercise,
+  displayName,
+  categoryLabel,
+  isFavorite,
+}: {
+  exercise: Exercise;
+  displayName: string;
+  categoryLabel: string;
+  isFavorite: boolean;
+}) {
   const url = resolveMediaUrl(exercise.gif_path || exercise.image_path);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const canDisplayMedia = Boolean(url && failedUrl !== url);
 
   return (
     <div className="exercise-card-media">
+      <span className="exercise-category-badge">{categoryLabel}</span>
+      {isFavorite ? (
+        <span className="exercise-favorite-badge" aria-label="Favori" title="Favori">
+          ★
+        </span>
+      ) : null}
       {canDisplayMedia ? (
         <img
           className="exercise-media"
@@ -62,6 +81,7 @@ function ExerciseMedia({ exercise, displayName }: { exercise: Exercise; displayN
 
 export function ExercisesPage() {
   const queryClient = useQueryClient();
+  const { isAdminView } = useAdminView();
   const preferredLanguage = getPreferredExerciseLanguage();
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -69,23 +89,14 @@ export function ExercisesPage() {
   const [equipmentFilter, setEquipmentFilter] = useState("");
   const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
-  const [knownPersonalizations, setKnownPersonalizations] = useState(
-    () => {
-      const known = new Map<number, UserExercise | null>();
-      queryClient
-        .getQueriesData<UserExercise | null>({ queryKey: ["exercise-personalization"] })
-        .forEach(([queryKey, data]) => {
-          const exerciseId = queryKey[1];
-          if (typeof exerciseId === "number" && data !== undefined) known.set(exerciseId, data);
-        });
-      return known;
-    },
-  );
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
   const [editor, setEditor] = useState<EditorState>(null);
   const [personalizationTarget, setPersonalizationTarget] = useState<Exercise | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Exercise | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [loadingPersonalizationId, setLoadingPersonalizationId] = useState<number | null>(null);
+  const activeMenuRef = useRef<HTMLDivElement>(null);
 
   const filtersQuery = useQuery({
     queryKey: ["exercise-filters"],
@@ -99,16 +110,43 @@ export function ExercisesPage() {
   }, [searchInput]);
 
   const exercisesQuery = useQuery({
-    queryKey: ["exercises-search", searchQuery, muscleFilter, equipmentFilter, pageSize, page],
+    queryKey: [
+      "exercises-search",
+      searchQuery,
+      muscleFilter,
+      equipmentFilter,
+      favoriteOnly,
+      pageSize,
+      page,
+    ],
     queryFn: () =>
       searchExercises({
         q: searchQuery || undefined,
         muscle_group: muscleFilter || undefined,
         equipment: equipmentFilter || undefined,
+        favorite_only: favoriteOnly || undefined,
         limit: pageSize,
         offset: (page - 1) * pageSize,
       }),
   });
+
+  const personalizationQueries = useQueries({
+    queries: (exercisesQuery.data?.items ?? []).map((exercise) => ({
+      queryKey: ["exercise-personalization", exercise.id] as const,
+      queryFn: () =>
+        apiClient.get<UserExercise | null>(`/api/exercises/${exercise.id}/personalization`),
+      staleTime: 5 * 60_000,
+    })),
+  });
+
+  const knownPersonalizations = useMemo(() => {
+    const known = new Map<number, UserExercise | null>();
+    (exercisesQuery.data?.items ?? []).forEach((exercise, index) => {
+      const personalization = personalizationQueries[index]?.data;
+      if (personalization !== undefined) known.set(exercise.id, personalization);
+    });
+    return known;
+  }, [exercisesQuery.data?.items, personalizationQueries]);
 
   const saveMutation = useMutation({
     mutationFn: ({ id, payload }: { id?: number; payload: ExerciseCreate }) =>
@@ -141,19 +179,72 @@ export function ExercisesPage() {
     },
   });
 
+  const preferenceMutation = useMutation({
+    mutationFn: async ({
+      exercise,
+      flag,
+    }: {
+      exercise: Exercise;
+      flag: PersonalizationFlag;
+    }) => {
+      const current = await queryClient.fetchQuery<UserExercise | null>({
+        queryKey: ["exercise-personalization", exercise.id],
+        queryFn: () =>
+          apiClient.get<UserExercise | null>(
+            `/api/exercises/${exercise.id}/personalization`,
+          ),
+      });
+      const payload: UserExerciseUpdate = {
+        custom_name: current?.custom_name ?? null,
+        custom_notes: current?.custom_notes ?? null,
+        is_hidden: current?.is_hidden ?? false,
+        is_favorite: current?.is_favorite ?? false,
+      };
+      payload[flag] = !(current?.[flag] ?? false);
+      return apiClient.put<UserExercise, UserExerciseUpdate>(
+        `/api/exercises/${exercise.id}/personalization`,
+        payload,
+      );
+    },
+    onSuccess: (saved, { exercise }) => {
+      queryClient.setQueryData(["exercise-personalization", exercise.id], saved);
+      handlePersonalizationChange(exercise.id, saved);
+      void queryClient.invalidateQueries({ queryKey: ["exercises-search"] });
+      setOpenMenuId(null);
+    },
+  });
+
   useEffect(() => {
     setPage(1);
   }, [searchQuery, muscleFilter, equipmentFilter, favoriteOnly, showHidden, pageSize]);
 
+  useEffect(() => {
+    if (openMenuId === null) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!activeMenuRef.current?.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenMenuId(null);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openMenuId]);
+
   const visibleItems = useMemo(() => {
     return (exercisesQuery.data?.items ?? []).filter((exercise) => {
       const personalization = knownPersonalizations.get(exercise.id);
-      return (
-        (!favoriteOnly || personalization?.is_favorite === true) &&
-        (showHidden || personalization?.is_hidden !== true)
-      );
+      return showHidden || personalization?.is_hidden !== true;
     });
-  }, [exercisesQuery.data?.items, favoriteOnly, showHidden, knownPersonalizations]);
+  }, [exercisesQuery.data?.items, showHidden, knownPersonalizations]);
 
   const serverTotal = exercisesQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(serverTotal / pageSize));
@@ -162,16 +253,34 @@ export function ExercisesPage() {
     if (!exercisesQuery.isPending && page > totalPages) setPage(totalPages);
   }, [exercisesQuery.isPending, page, totalPages]);
 
-  const handlePersonalizationChange = useCallback(
-    (exerciseId: number, personalization: UserExercise | null) => {
-      setKnownPersonalizations((current) => {
-        const next = new Map(current);
-        next.set(exerciseId, personalization);
-        return next;
+  function handlePersonalizationChange(
+    exerciseId: number,
+    personalization: UserExercise | null,
+  ) {
+    queryClient.setQueryData(["exercise-personalization", exerciseId], personalization);
+  }
+
+  async function loadPersonalization(exerciseId: number) {
+    setLoadingPersonalizationId(exerciseId);
+    try {
+      const personalization = await queryClient.fetchQuery<UserExercise | null>({
+        queryKey: ["exercise-personalization", exerciseId],
+        queryFn: () =>
+          apiClient.get<UserExercise | null>(`/api/exercises/${exerciseId}/personalization`),
       });
-    },
-    [],
-  );
+      queryClient.setQueryData(["exercise-personalization", exerciseId], personalization);
+    } finally {
+      setLoadingPersonalizationId((current) => (current === exerciseId ? null : current));
+    }
+  }
+
+  function toggleExerciseMenu(exerciseId: number) {
+    const shouldOpen = openMenuId !== exerciseId;
+    setOpenMenuId(shouldOpen ? exerciseId : null);
+    if (shouldOpen && !knownPersonalizations.has(exerciseId)) {
+      void loadPersonalization(exerciseId).catch(() => undefined);
+    }
+  }
 
   const saveError = saveMutation.error;
   const saveErrorMessage = saveError instanceof ApiError ? saveError.message : saveError?.message;
@@ -182,7 +291,11 @@ export function ExercisesPage() {
         eyebrow="Référentiel global"
         title="Exercices"
         description={`${serverTotal} résultat(s) pour les filtres actifs`}
-        action={<Button onClick={() => setEditor({ mode: "create" })}>Nouvel exercice</Button>}
+        action={
+          isAdminView ? (
+            <Button onClick={() => setEditor({ mode: "create" })}>Nouvel exercice</Button>
+          ) : undefined
+        }
       />
 
       <Modal
@@ -255,7 +368,7 @@ export function ExercisesPage() {
         />
         <div className="filter-toggles">
           <CheckboxField
-            label="Favoris connus"
+            label="Favoris uniquement"
             checked={favoriteOnly}
             onChange={(event) => setFavoriteOnly(event.target.checked)}
           />
@@ -285,8 +398,8 @@ export function ExercisesPage() {
         <span>Page {page} / {totalPages}</span>
       </div>
       <p className="filter-note">
-        Les filtres favoris et masqués s'appliquent localement sur la page actuelle.
-        La recherche et les filtres groupe/équipement sont traités par le serveur.
+        La recherche, les favoris et les filtres groupe/équipement sont traités par le serveur.
+        Le filtre des exercices masqués s'applique à la page actuelle.
       </p>
 
       {visibleItems.length === 0 ? (
@@ -298,7 +411,11 @@ export function ExercisesPage() {
               : "Les filtres favoris/masqués ont réduit la liste. Modifiez-les ou ouvrez d'autres personnalisations."
           }
           action={
-            serverTotal === 0 && !searchInput && !muscleFilter && !equipmentFilter ? (
+            isAdminView &&
+            serverTotal === 0 &&
+            !searchInput &&
+            !muscleFilter &&
+            !equipmentFilter ? (
               <Button onClick={() => setEditor({ mode: "create" })}>Créer un exercice</Button>
             ) : undefined
           }
@@ -309,6 +426,7 @@ export function ExercisesPage() {
             const personalization = knownPersonalizations.get(exercise.id);
             const translatedName =
               getTranslatedExerciseField(exercise, "name", preferredLanguage) || exercise.name;
+            const categoryLabel = exercise.category || exercise.body_part || "Exercice";
             const muscleLabel = getExerciseMuscleLabel(exercise);
             const additionalAnatomyLabels = [exercise.target, exercise.body_part].filter(
               (label, index, labels): label is string =>
@@ -320,27 +438,106 @@ export function ExercisesPage() {
             );
 
             return (
-              <article className="item-card exercise-card" key={exercise.id}>
-                <ExerciseMedia exercise={exercise} displayName={translatedName} />
+              <article
+                className={`item-card exercise-card${
+                  openMenuId === exercise.id ? " exercise-card-menu-open" : ""
+                }`}
+                key={exercise.id}
+              >
+                <ExerciseMedia
+                  exercise={exercise}
+                  displayName={translatedName}
+                  categoryLabel={categoryLabel}
+                  isFavorite={personalization?.is_favorite === true}
+                />
                 <div className="exercise-card-content">
-                  <div className="item-card-topline">
-                    <span className="pill">{exercise.category || "Exercice"}</span>
-                    <div className="badge-row">
-                      {personalization?.is_favorite && (
-                        <span className="badge badge-star">Favori</span>
-                      )}
-                      {personalization?.is_hidden && (
+                  {personalization?.is_hidden ? (
+                    <div className="item-card-topline">
+                      <div className="badge-row">
                         <span className="badge badge-hidden">Masqué</span>
-                      )}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="exercise-card-title-row">
+                    <Link
+                      className="exercise-card-title-link"
+                      to={`/exercises/${exercise.id}`}
+                      aria-label={`Voir le détail de ${translatedName}`}
+                    >
+                      <h2 title={translatedName}>{translatedName}</h2>
+                    </Link>
+                    <div
+                      className="exercise-card-menu"
+                      ref={openMenuId === exercise.id ? activeMenuRef : undefined}
+                    >
+                      <button
+                        className="exercise-card-menu-trigger"
+                        type="button"
+                        aria-label={`Actions pour ${translatedName}`}
+                        aria-haspopup="menu"
+                        aria-expanded={openMenuId === exercise.id}
+                        onClick={() => toggleExerciseMenu(exercise.id)}
+                      >
+                        <span aria-hidden="true">⋮</span>
+                      </button>
+                      {openMenuId === exercise.id ? (
+                        <div className="exercise-card-menu-dropdown" role="menu">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={
+                              loadingPersonalizationId === exercise.id ||
+                              (preferenceMutation.isPending &&
+                                preferenceMutation.variables?.exercise.id === exercise.id)
+                            }
+                            onClick={() =>
+                              preferenceMutation.mutate({ exercise, flag: "is_favorite" })
+                            }
+                          >
+                            {loadingPersonalizationId === exercise.id
+                              ? "Chargement…"
+                              : personalization?.is_favorite
+                                ? "Retirer des favoris"
+                                : "Mettre en favoris"}
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled={
+                              loadingPersonalizationId === exercise.id ||
+                              (preferenceMutation.isPending &&
+                                preferenceMutation.variables?.exercise.id === exercise.id)
+                            }
+                            onClick={() =>
+                              preferenceMutation.mutate({ exercise, flag: "is_hidden" })
+                            }
+                          >
+                            {personalization?.is_hidden
+                              ? "Afficher l’exercice"
+                              : "Masquer l’exercice"}
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              setPersonalizationTarget(exercise);
+                            }}
+                          >
+                            Personnaliser
+                          </button>
+                          {preferenceMutation.error &&
+                          preferenceMutation.variables?.exercise.id === exercise.id ? (
+                            <span className="exercise-card-menu-error" role="alert">
+                              {preferenceMutation.error instanceof ApiError
+                                ? preferenceMutation.error.message
+                                : "Impossible de modifier la préférence."}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
-                  <Link
-                    className="exercise-card-title-link"
-                    to={`/exercises/${exercise.id}`}
-                    aria-label={`Voir le détail de ${translatedName}`}
-                  >
-                    <h2 title={translatedName}>{translatedName}</h2>
-                  </Link>
                   <div className="exercise-tags">
                     {muscleLabel && <span className="tag tag-muscle">{muscleLabel}</span>}
                     {additionalAnatomyLabels.map((label) => (
@@ -352,31 +549,25 @@ export function ExercisesPage() {
                       <span className="tag tag-equip">{exercise.equipment}</span>
                     )}
                   </div>
-                  <div className="card-actions exercise-card-actions">
-                    <Button
-                      className="exercise-card-personalize"
-                      variant="secondary"
-                      size="small"
-                      onClick={() => setPersonalizationTarget(exercise)}
-                    >
-                      Personnaliser
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      onClick={() => setEditor({ mode: "edit", exercise })}
-                    >
-                      Modifier
-                    </Button>
-                    <Button
-                      className="exercise-card-delete"
-                      variant="ghost"
-                      size="small"
-                      onClick={() => setDeleteTarget(exercise)}
-                    >
-                      Supprimer
-                    </Button>
-                  </div>
+                  {isAdminView ? (
+                    <div className="card-actions exercise-card-actions">
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        onClick={() => setEditor({ mode: "edit", exercise })}
+                      >
+                        Modifier
+                      </Button>
+                      <Button
+                        className="exercise-card-delete"
+                        variant="ghost"
+                        size="small"
+                        onClick={() => setDeleteTarget(exercise)}
+                      >
+                        Supprimer
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </article>
             );

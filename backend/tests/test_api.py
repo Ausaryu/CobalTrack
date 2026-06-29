@@ -66,12 +66,14 @@ def test_authentication_hashes_password(client: TestClient, db: Session) -> None
 
     response = client.get("/api/auth/me", headers=headers)
     assert response.status_code == 200
-    assert response.json()["email"] == "user@example.com"
+    assert response.json()["username"] == "user"
+    assert response.json()["is_admin"] is True
+    assert "email" not in response.json()
     assert "hashed_password" not in response.json()
 
     login = client.post(
         "/api/auth/login",
-        json={"email": "USER@example.com", "password": "password123"},
+        json={"username": "USER", "password": "password123"},
     )
     assert login.status_code == 200
     assert client.post("/api/auth/logout", headers=headers).status_code == 200
@@ -112,6 +114,14 @@ def test_exercises_and_user_personalization_are_separate(client: TestClient) -> 
     assert global_exercise.status_code == 200
     assert global_exercise.json()["name"] == "Bench press"
 
+    forbidden_update = client.put(
+        f"/api/exercises/{exercise_id}",
+        headers=second_user,
+        json={"name": "Unauthorized name"},
+    )
+    assert forbidden_update.status_code == 403
+    assert forbidden_update.json()["detail"] == "Administrator privileges required"
+
     updated = client.put(
         f"/api/exercises/{exercise_id}",
         headers=first_user,
@@ -126,6 +136,35 @@ def test_exercises_and_user_personalization_are_separate(client: TestClient) -> 
         f"/api/exercises/{exercise_id}/personalization", headers=first_user
     ).status_code == 204
     assert client.delete(f"/api/exercises/{exercise_id}", headers=first_user).status_code == 204
+
+
+def test_non_admin_cannot_mutate_global_exercises(client: TestClient) -> None:
+    admin = register(client, "admin")
+    member = register(client, "member")
+    created = client.post(
+        "/api/exercises",
+        headers=admin,
+        json={"name": "Admin exercise"},
+    )
+    assert created.status_code == 201
+    exercise_id = created.json()["id"]
+
+    member_profile = client.get("/api/auth/me", headers=member)
+    assert member_profile.json()["is_admin"] is False
+    assert client.post(
+        "/api/exercises",
+        headers=member,
+        json={"name": "Forbidden exercise"},
+    ).status_code == 403
+    assert client.put(
+        f"/api/exercises/{exercise_id}",
+        headers=member,
+        json={"name": "Forbidden update"},
+    ).status_code == 403
+    assert client.delete(
+        f"/api/exercises/{exercise_id}",
+        headers=member,
+    ).status_code == 403
 
 
 def test_workouts_and_programs_are_scoped_to_the_owner(client: TestClient) -> None:

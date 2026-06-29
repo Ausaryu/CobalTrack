@@ -5,6 +5,7 @@ export interface SearchExercisesParams {
   q?: string;
   muscle_group?: string;
   equipment?: string;
+  favorite_only?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -15,6 +16,7 @@ export function searchExercises(params: SearchExercisesParams = {}): Promise<Exe
   if (params.q) p.set("q", params.q);
   if (params.muscle_group) p.set("muscle_group", params.muscle_group);
   if (params.equipment) p.set("equipment", params.equipment);
+  if (params.favorite_only) p.set("favorite_only", "true");
   return apiClient.get<ExerciseListResponse>(`/api/exercises/search?${p.toString()}`);
 }
 

@@ -28,9 +28,9 @@ Réponse d'authentification :
   "token_type": "bearer",
   "user": {
     "id": 1,
-    "email": "user@example.com",
     "username": "user",
     "is_active": true,
+    "is_admin": true,
     "created_at": "2026-06-28T12:00:00Z",
     "updated_at": "2026-06-28T12:00:00Z"
   }
@@ -67,8 +67,9 @@ Pour une validation `422`, `detail` est une liste structurée par Pydantic. Code
 | Code | Signification |
 |---|---|
 | `401` | Bearer token absent, invalide ou expiré |
+| `403` | Action réservée aux administrateurs |
 | `404` | Ressource inexistante ou non détenue par l'utilisateur |
-| `409` | Email ou `external_id` déjà utilisé, ou exercice encore référencé |
+| `409` | Nom d'utilisateur ou `external_id` déjà utilisé, ou exercice encore référencé |
 | `422` | Body ou paramètres invalides |
 
 ## Routes publiques
@@ -93,7 +94,6 @@ Pour une validation `422`, `detail` est une liste structurée par Pydantic. Code
 
 ```json
 {
-  "email": "user@example.com",
   "username": "user",
   "password": "minimum-8-characters"
 }
@@ -103,11 +103,11 @@ Pour une validation `422`, `detail` est une liste structurée par Pydantic. Code
 
 | Méthode | URL | Auth | Body | Réponse | Erreurs principales |
 |---|---|---|---|---|---|
-| `POST` | `/api/auth/login` | Non | Email et mot de passe JSON | Token + utilisateur | `401`, `422` |
+| `POST` | `/api/auth/login` | Non | Pseudo et mot de passe JSON | Token + utilisateur | `401`, `422` |
 
 ```json
 {
-  "email": "user@example.com",
+  "username": "user",
   "password": "minimum-8-characters"
 }
 ```
@@ -123,7 +123,7 @@ Pour une validation `422`, `detail` est une liste structurée par Pydantic. Code
 
 ### Exercices
 
-Les exercices sont globaux. Ils ne contiennent jamais de `user_id`. Les personnalisations sont stockées séparément par utilisateur.
+Les exercices sont globaux. Ils ne contiennent jamais de `user_id`. Les personnalisations sont stockées séparément par utilisateur. La création, la modification et la suppression d'un exercice global nécessitent `is_admin=true`.
 
 Les champs natifs (`name`, `category`, `body_part`, `target`, `muscle_group`, `equipment`, `instructions`) restent en anglais lorsqu'une valeur anglaise existe. Le champ nullable `translations` contient un document JSON sérialisé en texte, organisé par langue puis par champ. La recherche interroge les champs natifs et les traductions ; les filtres restent basés sur les champs natifs.
 
@@ -132,10 +132,10 @@ Les champs natifs (`name`, `category`, `body_part`, `target`, `muscle_group`, `e
 | `GET` | `/api/exercises` | Bearer | Aucun | Liste complète de `ExerciseRead` (compatibilité) | `401` |
 | `GET` | `/api/exercises/search` | Bearer | Query params | `ExerciseListResponse` paginé | `401`, `422` |
 | `GET` | `/api/exercises/filters` | Bearer | Aucun | `ExerciseFiltersResponse` | `401` |
-| `POST` | `/api/exercises` | Bearer | `ExerciseCreate` | Exercice créé, `201` | `401`, `409`, `422` |
+| `POST` | `/api/exercises` | Admin | `ExerciseCreate` | Exercice créé, `201` | `401`, `403`, `409`, `422` |
 | `GET` | `/api/exercises/{exercise_id}` | Bearer | Aucun | `ExerciseRead` | `401`, `404` |
-| `PUT` | `/api/exercises/{exercise_id}` | Bearer | Champs à modifier | `ExerciseRead` | `401`, `404`, `409`, `422` |
-| `DELETE` | `/api/exercises/{exercise_id}` | Bearer | Aucun | Aucun contenu, `204` | `401`, `404`, `409` |
+| `PUT` | `/api/exercises/{exercise_id}` | Admin | Champs à modifier | `ExerciseRead` | `401`, `403`, `404`, `409`, `422` |
+| `DELETE` | `/api/exercises/{exercise_id}` | Admin | Aucun | Aucun contenu, `204` | `401`, `403`, `404`, `409` |
 
 ### Recherche paginée — `GET /api/exercises/search`
 
@@ -146,6 +146,7 @@ Query params optionnels :
 | `q` | string | — | Recherche normalisée dans les champs natifs et traduits ; ignore casse, accents, espaces et ponctuation |
 | `muscle_group` | string | — | Filtre par groupe musculaire (COALESCE muscle_group, target, body_part) |
 | `equipment` | string | — | Filtre par équipement |
+| `favorite_only` | bool | false | Limite les résultats paginés aux favoris de l'utilisateur connecté |
 | `limit` | int 1–100 | 50 | Nombre de résultats |
 | `offset` | int ≥ 0 | 0 | Décalage pour la pagination |
 

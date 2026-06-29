@@ -11,6 +11,7 @@ import { ErrorState } from "../../shared/components/ErrorState";
 import { LoadingState } from "../../shared/components/LoadingState";
 import { Modal } from "../../shared/components/Modal";
 import { PageHeader } from "../../shared/components/PageHeader";
+import { useAdminView } from "../../shared/hooks/useAdminView";
 import {
   getPreferredExerciseLanguage,
   getTranslatedExerciseField,
@@ -56,6 +57,7 @@ function DetailItem({ label, value }: { label: string; value: string | null }) {
 }
 
 export function ExerciseDetailPage() {
+  const { isAdminView } = useAdminView();
   const { exerciseId: exerciseIdParam } = useParams();
   const exerciseId = Number(exerciseIdParam);
   const hasValidId = Number.isInteger(exerciseId) && exerciseId > 0;
@@ -229,20 +231,24 @@ export function ExerciseDetailPage() {
       </section>
 
       <div className="exercise-detail-actions">
-        <Button
-          onClick={() => {
-            saveMutation.reset();
-            setIsEditing(true);
-          }}
-        >
-          Modifier
-        </Button>
         <Button variant="secondary" onClick={() => setIsPersonalizing(true)}>
           Personnalisation
         </Button>
-        <Button variant="danger" onClick={() => setIsDeleteOpen(true)}>
-          Supprimer
-        </Button>
+        {isAdminView ? (
+          <>
+            <Button
+              onClick={() => {
+                saveMutation.reset();
+                setIsEditing(true);
+              }}
+            >
+              Modifier
+            </Button>
+            <Button variant="danger" onClick={() => setIsDeleteOpen(true)}>
+              Supprimer
+            </Button>
+          </>
+        ) : null}
       </div>
 
       <Modal title="Modifier l’exercice" isOpen={isEditing} onClose={closeEditor}>

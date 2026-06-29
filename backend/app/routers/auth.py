@@ -25,11 +25,11 @@ def register(payload: RegisterRequest, db: DbSession) -> TokenResponse:
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: DbSession) -> TokenResponse:
-    user = authenticate_user(db, str(payload.email), payload.password)
+    user = authenticate_user(db, payload.username, payload.password)
     if user is None or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+            detail="Invalid username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return TokenResponse(
@@ -47,4 +47,3 @@ def me(current_user: CurrentUser) -> UserRead:
 def logout(_current_user: CurrentUser) -> LogoutResponse:
     # JWTs are stateless; the client discards its token for the MVP logout flow.
     return LogoutResponse()
-

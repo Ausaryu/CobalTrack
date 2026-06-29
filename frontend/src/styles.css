@@ -426,6 +426,32 @@ h2 {
   color: #aeb8ca;
 }
 
+.admin-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #2a3853;
+  border-radius: 10px;
+  color: #d7deeb;
+  background: #172238;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-view-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #4a7cf0;
+}
+
+.admin-view-toggle:focus-within {
+  outline: 3px solid rgba(74, 124, 240, 0.28);
+  outline-offset: 2px;
+}
+
 .mobile-header {
   display: none;
 }
@@ -1677,13 +1703,15 @@ h2 {
 /* ── Exercise cards ── */
 
 .exercise-card-grid {
+  align-items: start;
   gap: 1.15rem;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
 }
 
 .exercise-card {
+  position: relative;
   display: flex;
-  overflow: hidden;
+  overflow: visible;
   min-height: 0;
   flex-direction: column;
   padding: 0;
@@ -1693,6 +1721,10 @@ h2 {
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
+.exercise-card-menu-open {
+  z-index: 5;
+}
+
 .exercise-card:hover {
   border-color: #c7d4e7;
   box-shadow: 0 16px 36px rgba(31, 49, 86, 0.11);
@@ -1700,22 +1732,66 @@ h2 {
 }
 
 .exercise-card-media {
+  position: relative;
   display: grid;
   width: 100%;
-  height: 180px;
-  flex: 0 0 180px;
+  height: 220px;
+  flex: 0 0 220px;
   overflow: hidden;
-  padding: 0.75rem;
+  padding: 0.65rem;
   place-items: center;
   border-bottom: 1px solid #edf1f6;
-  background: linear-gradient(145deg, #f7f9fc, #fff);
+  border-radius: 17px 17px 0 0;
+  background: #fff;
 }
 
 .exercise-media {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 180px;
+  height: 180px;
+  max-width: calc(100% - 1.3rem);
+  max-height: calc(100% - 1.3rem);
   object-fit: contain;
+  object-position: center;
+}
+
+.exercise-category-badge {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  z-index: 1;
+  overflow: hidden;
+  max-width: calc(100% - 4rem);
+  padding: 0.3rem 0.65rem;
+  border: 1px solid rgba(199, 210, 226, 0.9);
+  border-radius: 999px;
+  color: #445168;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(31, 49, 86, 0.08);
+  backdrop-filter: blur(4px);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exercise-favorite-badge {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.7rem;
+  z-index: 1;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid #f1dfa5;
+  border-radius: 50%;
+  color: #d69d00;
+  background: rgba(255, 248, 223, 0.94);
+  box-shadow: 0 2px 8px rgba(31, 49, 86, 0.08);
+  font-size: 0.9rem;
+  line-height: 1;
 }
 
 .exercise-media-placeholder {
@@ -1744,30 +1820,18 @@ h2 {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  padding: 1rem 1.05rem 1.05rem;
+  padding: 0.85rem 1.05rem 0.95rem;
 }
 
 .exercise-card .item-card-topline {
-  min-height: 24px;
   align-items: flex-start;
-}
-
-.exercise-card .pill {
-  overflow: hidden;
-  max-width: 55%;
-  padding: 0.25rem 0.55rem;
-  color: #5d6980;
-  background: #f0f3f8;
-  font-size: 0.67rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-content: flex-end;
 }
 
 .exercise-card h2 {
   display: -webkit-box;
   overflow: hidden;
-  min-height: 2.7em;
-  margin: 0.85rem 0 0;
+  margin: 0;
   font-size: 1.08rem;
   line-height: 1.35;
   letter-spacing: -0.015em;
@@ -1775,8 +1839,21 @@ h2 {
   -webkit-line-clamp: 2;
 }
 
+.exercise-card .item-card-topline + .exercise-card-title-row h2 {
+  margin-top: 0.65rem;
+}
+
+.exercise-card-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
 .exercise-card-title-link {
   display: block;
+  min-width: 0;
+  flex: 1;
   border-radius: 5px;
   color: inherit;
   text-decoration: none;
@@ -1791,6 +1868,86 @@ h2 {
   outline-offset: 3px;
 }
 
+.exercise-card-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.exercise-card-menu-trigger {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #647087;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.exercise-card-menu-trigger:hover,
+.exercise-card-menu-trigger[aria-expanded="true"] {
+  color: var(--ink);
+  border-color: #dce3ed;
+  background: #f3f6fa;
+}
+
+.exercise-card-menu-trigger:focus-visible {
+  outline: 3px solid rgba(36, 87, 214, 0.2);
+  outline-offset: 2px;
+}
+
+.exercise-card-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 10;
+  display: grid;
+  width: max-content;
+  min-width: 175px;
+  overflow: hidden;
+  padding: 0.3rem;
+  border: 1px solid #dce3ed;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(31, 49, 86, 0.18);
+}
+
+.exercise-card-menu-dropdown button {
+  padding: 0.6rem 0.7rem;
+  border: 0;
+  border-radius: 8px;
+  color: #354157;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.exercise-card-menu-dropdown button:hover:not(:disabled),
+.exercise-card-menu-dropdown button:focus-visible {
+  outline: none;
+  color: var(--cobalt);
+  background: var(--cobalt-soft);
+}
+
+.exercise-card-menu-dropdown button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.exercise-card-menu-error {
+  max-width: 210px;
+  padding: 0.45rem 0.7rem;
+  color: var(--danger);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
 /* ── Exercise tags ── */
 
 .exercise-tags {
@@ -1798,6 +1955,10 @@ h2 {
   flex-wrap: wrap;
   gap: 0.35rem;
   margin: 0.75rem 0 1rem;
+}
+
+.exercise-card .exercise-tags {
+  margin: 0.65rem 0 0;
 }
 
 .tag {
@@ -1849,12 +2010,6 @@ h2 {
   line-height: 1.2;
 }
 
-.badge-star {
-  color: #765707;
-  border-color: #f1dfa5;
-  background: #fff8df;
-}
-
 .badge-hidden {
   color: #596274;
   border-color: #dfe4eb;
@@ -1874,11 +2029,6 @@ h2 {
   min-width: 0;
   border: 1px solid transparent;
   border-radius: 9px;
-}
-
-.exercise-card-actions .exercise-card-personalize {
-  border-color: #d4e1fb;
-  grid-column: 1 / -1;
 }
 
 .exercise-card-actions .button-ghost {
@@ -1904,8 +2054,8 @@ h2 {
 
 @media (max-width: 420px) {
   .exercise-card-media {
-    height: 172px;
-    flex-basis: 172px;
+    height: 200px;
+    flex-basis: 200px;
   }
 }
 
