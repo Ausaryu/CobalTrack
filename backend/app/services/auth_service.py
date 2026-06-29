@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.security import decode_access_token, hash_password, verify_password
 from app.models.user import User
 from app.schemas.auth import RegisterRequest
+from app.schemas.user import UserUpdate
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -57,6 +58,13 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None or not user.is_active:
         raise credentials_error
+    return user
+
+
+def update_user_profile(db: Session, user: User, payload: UserUpdate) -> User:
+    user.current_bodyweight_kg = payload.current_bodyweight_kg
+    db.commit()
+    db.refresh(user)
     return user
 
 

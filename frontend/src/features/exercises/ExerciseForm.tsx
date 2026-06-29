@@ -1,9 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-import type { Exercise, ExerciseCreate } from "../../shared/api/types";
+import type {
+  Exercise,
+  ExerciseCreate,
+  ExerciseTrackingType,
+} from "../../shared/api/types";
 import { Button } from "../../shared/components/Button";
+import { SelectField } from "../../shared/components/SelectField";
 import { TextareaField } from "../../shared/components/TextareaField";
 import { TextField } from "../../shared/components/TextField";
+import { EXERCISE_TRACKING_TYPE_OPTIONS } from "../../shared/utils/exerciseTracking";
 
 type ExerciseFormTab = "information" | "translations";
 type TranslationLanguage = "fr" | "en" | "it" | "tr";
@@ -87,6 +93,8 @@ export function ExerciseForm({
   const [bodyPart, setBodyPart] = useState("");
   const [target, setTarget] = useState("");
   const [equipment, setEquipment] = useState("");
+  const [trackingType, setTrackingType] =
+    useState<ExerciseTrackingType>("WEIGHT_REPS");
   const [instructions, setInstructions] = useState("");
   const [secondaryMuscles, setSecondaryMuscles] = useState("");
   const [activeTab, setActiveTab] = useState<ExerciseFormTab>("information");
@@ -103,6 +111,7 @@ export function ExerciseForm({
     setBodyPart(exercise?.body_part || "");
     setTarget(exercise?.target || "");
     setEquipment(exercise?.equipment || "");
+    setTrackingType(exercise?.tracking_type || "WEIGHT_REPS");
     setInstructions(exercise?.instructions || "");
     setSecondaryMuscles(
       exercise?.secondary_muscles.map((muscle) => muscle.muscle_name).join(", ") || "",
@@ -152,6 +161,7 @@ export function ExerciseForm({
       body_part: bodyPart.trim() || null,
       target: target.trim() || null,
       equipment: equipment.trim() || null,
+      tracking_type: trackingType,
       instructions: instructions.trim() || null,
       translations: translationsTouched
         ? serializeTranslations(translations)
@@ -224,6 +234,14 @@ export function ExerciseForm({
             <TextField label="Partie du corps" value={bodyPart} onChange={(e) => setBodyPart(e.target.value)} />
             <TextField label="Cible" value={target} onChange={(e) => setTarget(e.target.value)} />
             <TextField label="Équipement" value={equipment} onChange={(e) => setEquipment(e.target.value)} />
+            <SelectField
+              label="Type de suivi"
+              value={trackingType}
+              onChange={(event) =>
+                setTrackingType(event.target.value as ExerciseTrackingType)
+              }
+              options={EXERCISE_TRACKING_TYPE_OPTIONS}
+            />
             <TextField
               label="Muscles secondaires"
               value={secondaryMuscles}

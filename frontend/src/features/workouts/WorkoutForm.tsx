@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import type {
+  ExerciseTrackingType,
   WorkoutCreate,
   WorkoutSession,
   WorkoutSetCreate,
@@ -11,10 +12,23 @@ import { ExercisePicker } from "../../shared/components/ExercisePicker";
 import { NumberField } from "../../shared/components/NumberField";
 import { TextareaField } from "../../shared/components/TextareaField";
 import { TextField } from "../../shared/components/TextField";
+import { useAuth } from "../auth/authStore";
+import {
+  getExerciseTrackingTypeLabel,
+  getWorkoutTrackingFields,
+  usesBodyweightSnapshot,
+} from "../../shared/utils/exerciseTracking";
 
 interface SetDraft {
   weight: string;
+  assistanceWeight: string;
+  addedWeight: string;
+  bodyweight: string;
   reps: string;
+  durationSeconds: string;
+  distanceMeters: string;
+  calories: string;
+  resistanceLevel: string;
   rpe: string;
   restSeconds: string;
   isWarmup: boolean;
@@ -23,6 +37,7 @@ interface SetDraft {
 
 interface ExerciseDraft {
   exerciseId: string;
+  trackingType: ExerciseTrackingType;
   sets: SetDraft[];
 }
 
@@ -38,7 +53,14 @@ interface WorkoutFormProps {
 function emptySet(): SetDraft {
   return {
     weight: "",
+    assistanceWeight: "",
+    addedWeight: "",
+    bodyweight: "",
     reps: "",
+    durationSeconds: "",
+    distanceMeters: "",
+    calories: "",
+    resistanceLevel: "",
     rpe: "",
     restSeconds: "",
     isWarmup: false,
@@ -60,6 +82,35 @@ function cloneSet(set: SetDraft): SetDraft {
   return { ...set };
 }
 
+function toWorkoutSetPayload(
+  set: SetDraft,
+  setIndex: number,
+  trackingType: ExerciseTrackingType,
+  profileBodyweight: number | null,
+): WorkoutSetCreate {
+  const fields = getWorkoutTrackingFields(trackingType);
+  return {
+    order_index: setIndex,
+    weight: fields.weight ? optionalNumber(set.weight) : null,
+    assistance_weight: fields.assistanceWeight
+      ? optionalNumber(set.assistanceWeight)
+      : null,
+    added_weight: fields.addedWeight ? optionalNumber(set.addedWeight) : null,
+    bodyweight: usesBodyweightSnapshot(trackingType)
+      ? optionalNumber(set.bodyweight) ?? profileBodyweight
+      : null,
+    reps: fields.reps ? optionalNumber(set.reps) : null,
+    duration_seconds: fields.duration ? optionalNumber(set.durationSeconds) : null,
+    distance_meters: fields.distance ? optionalNumber(set.distanceMeters) : null,
+    calories: fields.calories ? optionalNumber(set.calories) : null,
+    resistance_level: fields.resistance ? optionalNumber(set.resistanceLevel) : null,
+    rpe: fields.rpe ? optionalNumber(set.rpe) : null,
+    rest_seconds: fields.rest ? optionalNumber(set.restSeconds) : null,
+    is_warmup: set.isWarmup,
+    is_failure: set.isFailure,
+  };
+}
+
 export function WorkoutForm({
   workout,
   isDuplicate = false,
@@ -68,6 +119,7 @@ export function WorkoutForm({
   onSubmit,
   onCancel,
 }: WorkoutFormProps) {
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [performedAt, setPerformedAt] = useState(localToday());
   const [duration, setDuration] = useState("");
@@ -85,9 +137,17 @@ export function WorkoutForm({
     setExerciseDrafts(
       workout?.exercises.map((entry) => ({
         exerciseId: entry.exercise_id.toString(),
+        trackingType: "WEIGHT_REPS" as ExerciseTrackingType,
         sets: entry.sets.map((set) => ({
           weight: set.weight?.toString() || "",
+          assistanceWeight: set.assistance_weight?.toString() || "",
+          addedWeight: set.added_weight?.toString() || "",
+          bodyweight: set.bodyweight?.toString() || "",
           reps: set.reps?.toString() || "",
+          durationSeconds: set.duration_seconds?.toString() || "",
+          distanceMeters: set.distance_meters?.toString() || "",
+          calories: set.calories?.toString() || "",
+          resistanceLevel: set.resistance_level?.toString() || "",
           rpe: set.rpe?.toString() || "",
           restSeconds: set.rest_seconds?.toString() || "",
           isWarmup: set.is_warmup,
@@ -101,7 +161,7 @@ export function WorkoutForm({
   function addExercise() {
     setExerciseDrafts((current) => [
       ...current,
-      { exerciseId: "", sets: [emptySet()] },
+      { exerciseId: "", trackingType: "WEIGHT_REPS", sets: [emptySet()] },
     ]);
   }
 
@@ -149,16 +209,13 @@ export function WorkoutForm({
       exercises: exerciseDrafts.map((entry, exerciseIndex) => ({
         exercise_id: Number(entry.exerciseId),
         order_index: exerciseIndex,
-        sets: entry.sets.map(
-          (set, setIndex): WorkoutSetCreate => ({
-            order_index: setIndex,
-            weight: optionalNumber(set.weight),
-            reps: optionalNumber(set.reps),
-            rpe: optionalNumber(set.rpe),
-            rest_seconds: optionalNumber(set.restSeconds),
-            is_warmup: set.isWarmup,
-            is_failure: set.isFailure,
-          }),
+        sets: entry.sets.map((set, setIndex) =>
+          toWorkoutSetPayload(
+            set,
+            setIndex,
+            entry.trackingType,
+            user?.current_bodyweight_kg ?? null,
+          ),
         ),
       })),
     });
@@ -218,7 +275,17 @@ export function WorkoutForm({
                 <ExercisePicker
                   label={`Exercice ${exerciseIndex + 1}`}
                   value={entry.exerciseId ? Number(entry.exerciseId) : null}
-                  onChange={(id) => updateExercise(exerciseIndex, { exerciseId: id.toString() })}
+                  onChange={(id, exercise) =>
+                    updateExercise(exerciseIndex, {
+                      exerciseId: id.toString(),
+                      trackingType: exercise?.tracking_type || "WEIGHT_REPS",
+                    })
+                  }
+                  onResolved={(exercise) =>
+                    updateExercise(exerciseIndex, {
+                      trackingType: exercise.tracking_type,
+                    })
+                  }
                 />
                 <Button
                   variant="ghost"
@@ -229,14 +296,39 @@ export function WorkoutForm({
                 </Button>
               </div>
 
+              <p className="tracking-type-hint">
+                Suivi : {getExerciseTrackingTypeLabel(entry.trackingType)}
+                {entry.trackingType === "ASSISTED_BODYWEIGHT_REPS"
+                  ? " · Plus l’assistance baisse, plus la performance progresse."
+                  : ""}
+              </p>
+              {usesBodyweightSnapshot(entry.trackingType) ? (
+                <p className="tracking-bodyweight-info">
+                  {entry.sets.find((set) => set.bodyweight !== "")?.bodyweight
+                    ? `Poids du corps utilisé : ${entry.sets.find((set) => set.bodyweight !== "")?.bodyweight} kg enregistré dans cette séance.`
+                    : user?.current_bodyweight_kg !== null &&
+                        user?.current_bodyweight_kg !== undefined
+                      ? `Poids du corps utilisé : ${user.current_bodyweight_kg} kg depuis votre profil.`
+                      : "Ajoutez votre poids dans le profil pour calculer les stats de poids du corps."}
+                </p>
+              ) : null}
+
               <div className="sets-list">
-                {entry.sets.map((set, setIndex) => (
-                  <div className="set-row" key={setIndex}>
+                {entry.sets.map((set, setIndex) => {
+                  const fields = getWorkoutTrackingFields(entry.trackingType);
+                  return (
+                  <div className="set-row set-row-tracking" key={setIndex}>
                     <strong>Série {setIndex + 1}</strong>
-                    <NumberField label="Poids (kg)" min={0} step="0.25" value={set.weight} onChange={(e) => updateSet(exerciseIndex, setIndex, { weight: e.target.value })} />
-                    <NumberField label="Répétitions" min={0} step="1" value={set.reps} onChange={(e) => updateSet(exerciseIndex, setIndex, { reps: e.target.value })} />
-                    <NumberField label="RPE" min={0} max={10} step="0.5" value={set.rpe} onChange={(e) => updateSet(exerciseIndex, setIndex, { rpe: e.target.value })} />
-                    <NumberField label="Repos (sec.)" min={0} step="1" value={set.restSeconds} onChange={(e) => updateSet(exerciseIndex, setIndex, { restSeconds: e.target.value })} />
+                    {fields.weight ? <NumberField label="Poids (kg)" min={0} step="0.25" value={set.weight} onChange={(e) => updateSet(exerciseIndex, setIndex, { weight: e.target.value })} /> : null}
+                    {fields.assistanceWeight ? <NumberField label="Assistance (kg)" min={0} step="0.25" value={set.assistanceWeight} onChange={(e) => updateSet(exerciseIndex, setIndex, { assistanceWeight: e.target.value })} /> : null}
+                    {fields.addedWeight ? <NumberField label="Lest ajouté (kg)" min={0} step="0.25" value={set.addedWeight} onChange={(e) => updateSet(exerciseIndex, setIndex, { addedWeight: e.target.value })} /> : null}
+                    {fields.reps ? <NumberField label="Répétitions" min={0} step="1" value={set.reps} onChange={(e) => updateSet(exerciseIndex, setIndex, { reps: e.target.value })} /> : null}
+                    {fields.duration ? <NumberField label="Durée (sec.)" min={0} step="1" value={set.durationSeconds} onChange={(e) => updateSet(exerciseIndex, setIndex, { durationSeconds: e.target.value })} /> : null}
+                    {fields.distance ? <NumberField label="Distance (m)" min={0} step="1" value={set.distanceMeters} onChange={(e) => updateSet(exerciseIndex, setIndex, { distanceMeters: e.target.value })} /> : null}
+                    {fields.calories ? <NumberField label="Calories" min={0} step="1" value={set.calories} onChange={(e) => updateSet(exerciseIndex, setIndex, { calories: e.target.value })} /> : null}
+                    {fields.resistance ? <NumberField label="Résistance / niveau" min={0} step="0.5" value={set.resistanceLevel} onChange={(e) => updateSet(exerciseIndex, setIndex, { resistanceLevel: e.target.value })} /> : null}
+                    {fields.rpe ? <NumberField label="Difficulté" hint="Note de 1 à 10. 10 = effort maximal." min={1} max={10} step="0.5" value={set.rpe} onChange={(e) => updateSet(exerciseIndex, setIndex, { rpe: e.target.value })} /> : null}
+                    {fields.rest ? <NumberField label="Repos (sec.)" min={0} step="1" value={set.restSeconds} onChange={(e) => updateSet(exerciseIndex, setIndex, { restSeconds: e.target.value })} /> : null}
                     <div className="set-flags">
                       <CheckboxField label="Échauffement" checked={set.isWarmup} onChange={(e) => updateSet(exerciseIndex, setIndex, { isWarmup: e.target.checked })} />
                       <CheckboxField label="À l’échec" checked={set.isFailure} onChange={(e) => updateSet(exerciseIndex, setIndex, { isFailure: e.target.checked })} />
@@ -271,7 +363,8 @@ export function WorkoutForm({
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <Button
                 variant="secondary"

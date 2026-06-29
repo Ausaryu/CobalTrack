@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String, false
+from sqlalchemy import Boolean, Float, String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -25,6 +25,7 @@ class User(TimestampMixin, Base):
         server_default=false(),
         nullable=False,
     )
+    current_bodyweight_kg: Mapped[float | None] = mapped_column(Float)
 
     exercise_preferences: Mapped[list["UserExercise"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

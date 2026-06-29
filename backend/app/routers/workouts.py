@@ -23,7 +23,12 @@ def list_workouts(db: DbSession, current_user: CurrentUser) -> list[WorkoutRead]
 def create_workout(
     payload: WorkoutCreate, db: DbSession, current_user: CurrentUser
 ) -> WorkoutRead:
-    return workout_service.create_workout(db, current_user.id, payload)  # type: ignore[return-value]
+    return workout_service.create_workout(  # type: ignore[return-value]
+        db,
+        current_user.id,
+        payload,
+        current_user.current_bodyweight_kg,
+    )
 
 
 # Must be declared before /{workout_id} to avoid int-coercion 422
@@ -58,7 +63,11 @@ def update_workout(
     current_user: CurrentUser,
 ) -> WorkoutRead:
     return workout_service.update_workout(  # type: ignore[return-value]
-        db, current_user.id, workout_id, payload
+        db,
+        current_user.id,
+        workout_id,
+        payload,
+        current_user.current_bodyweight_kg,
     )
 
 

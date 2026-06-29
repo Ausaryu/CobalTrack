@@ -8,6 +8,7 @@ import { EmptyState } from "../../shared/components/EmptyState";
 import { ErrorState } from "../../shared/components/ErrorState";
 import { LoadingState } from "../../shared/components/LoadingState";
 import { PageHeader } from "../../shared/components/PageHeader";
+import { useExerciseNames } from "../../shared/hooks/useExerciseNames";
 import { formatDate, formatNumber } from "../../shared/utils/format";
 
 export function DashboardPage() {
@@ -17,6 +18,10 @@ export function DashboardPage() {
     queryKey: ["programs-active"],
     queryFn: () => searchPrograms({ is_active: true, limit: 1 }),
   });
+  const exerciseNames = useExerciseNames([
+    ...(dashboardQuery.data?.top_exercises_by_volume.map((exercise) => exercise.exercise_id) ?? []),
+    ...(dashboardQuery.data?.recent_records.map((record) => record.exercise_id) ?? []),
+  ]);
 
   if (configQuery.isPending || dashboardQuery.isPending || activeProgramQuery.isPending) return <LoadingState label="Chargement du dashboard…" />;
   const error = configQuery.error || dashboardQuery.error || activeProgramQuery.error;
@@ -99,7 +104,9 @@ export function DashboardPage() {
                 <div className="ranking-row" key={exercise.exercise_id}>
                   <span className="ranking-index">{index + 1}</span>
                   <div className="ranking-name-bar">
-                    <strong>{exercise.exercise_name}</strong>
+                    <strong>
+                      {exerciseNames.get(exercise.exercise_id) || exercise.exercise_name}
+                    </strong>
                     <div className="volume-bar">
                       <div
                         className="volume-bar-fill"
@@ -128,7 +135,7 @@ export function DashboardPage() {
               {dashboard.recent_records.map((record) => (
                 <article className="record-row" key={record.exercise_id}>
                   <div>
-                    <strong>{record.exercise_name}</strong>
+                    <strong>{exerciseNames.get(record.exercise_id) || record.exercise_name}</strong>
                     <small>{formatDate(record.performed_at)}</small>
                   </div>
                   <div className="record-stats">

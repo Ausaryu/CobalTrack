@@ -17,12 +17,14 @@ import type {
   LoginPayload,
   RegisterPayload,
   User,
+  UserUpdatePayload,
 } from "../../shared/api/types";
 import {
   getCurrentUser,
   login as loginRequest,
   logout as logoutRequest,
   register as registerRequest,
+  updateCurrentUser,
 } from "./api";
 
 type AuthStatus = "loading" | "authenticated" | "anonymous";
@@ -32,6 +34,7 @@ interface AuthContextValue {
   status: AuthStatus;
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
+  updateProfile: (payload: UserUpdatePayload) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -88,6 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("authenticated");
   }, []);
 
+  const updateProfile = useCallback(async (payload: UserUpdatePayload) => {
+    const updatedUser = await updateCurrentUser(payload);
+    setUser(updatedUser);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       if (localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)) {
@@ -101,8 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   const value = useMemo(
-    () => ({ user, status, login, register, logout }),
-    [user, status, login, register, logout],
+    () => ({ user, status, login, register, updateProfile, logout }),
+    [user, status, login, register, updateProfile, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

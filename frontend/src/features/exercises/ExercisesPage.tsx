@@ -23,7 +23,7 @@ import { TextField } from "../../shared/components/TextField";
 import { useAdminView } from "../../shared/hooks/useAdminView";
 import {
   getPreferredExerciseLanguage,
-  getTranslatedExerciseField,
+  getTranslatedExerciseName,
 } from "../../shared/utils/exerciseTranslations";
 import { resolveMediaUrl } from "../../shared/utils/training";
 import { ExerciseForm } from "./ExerciseForm";
@@ -424,8 +424,7 @@ export function ExercisesPage() {
         <section className="card-grid exercise-card-grid">
           {visibleItems.map((exercise) => {
             const personalization = knownPersonalizations.get(exercise.id);
-            const translatedName =
-              getTranslatedExerciseField(exercise, "name", preferredLanguage) || exercise.name;
+            const translatedName = getTranslatedExerciseName(exercise, preferredLanguage);
             const categoryLabel = exercise.category || exercise.body_part || "Exercice";
             const muscleLabel = getExerciseMuscleLabel(exercise);
             const additionalAnatomyLabels = [exercise.target, exercise.body_part].filter(

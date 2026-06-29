@@ -26,6 +26,7 @@ GET    /api/config
 POST   /api/auth/register
 POST   /api/auth/login
 GET    /api/auth/me
+PUT    /api/auth/me
 POST   /api/auth/logout
 
 GET    /api/exercises
@@ -53,7 +54,7 @@ GET    /api/stats/dashboard
 GET    /api/stats/exercises/{exercise_id}
 ```
 
-Les workouts, programmes et statistiques sont filtrés sur l'utilisateur connecté. Les exercices restent globaux. Leurs personnalisations sont stockées séparément dans `UserExercise` et filtrées sur l'utilisateur. Les statistiques calculent à la volée le volume, l'e1RM, la synthèse hebdomadaire et la progression par exercice.
+Les workouts, programmes et statistiques sont filtrés sur l'utilisateur connecté. Les exercices restent globaux et leurs mutations sont réservées aux administrateurs. Leurs personnalisations sont stockées séparément dans `UserExercise` et filtrées sur l'utilisateur. Les statistiques calculent à la volée le volume et l'e1RM selon `Exercise.tracking_type` : charge externe, poids du corps assisté ou lesté et répétitions seules sont distingués ; cardio et temps ne produisent ni volume musculaire ni e1RM.
 
 Le contrat destiné au frontend est documenté dans `docs/API.md`.
 
@@ -122,8 +123,21 @@ cd backend
 pytest -q
 ```
 
+## Suivi spécifique des performances
+
+La migration `20260629_0005` ajoute des colonnes nullable aux séries et exercices planifiés pour
+l'assistance, le lest, le poids du corps, la durée, la distance, les calories et la résistance.
+`weight` et `target_weight` sont conservés sans conversion pour la compatibilité historique.
+Les formulaires frontend choisissent les champs visibles à partir de `Exercise.tracking_type`.
+
+La migration `20260629_0006` ajoute `users.current_bodyweight_kg`, nullable et validé entre 0 et
+400 kg par l'API. La valeur du profil sert uniquement de défaut lors de l'écriture d'une série
+`BODYWEIGHT_REPS`, `ASSISTED_BODYWEIGHT_REPS` ou `ADDED_BODYWEIGHT_REPS`. Elle est copiée dans
+`workout_sets.bodyweight` afin de figer l'historique ; modifier ensuite le profil ne réécrit aucune
+ancienne séance. Une valeur `bodyweight` explicitement envoyée reste prioritaire.
+
 ## Points restant à faire
 
-- Choisir une politique d'administration du référentiel global avant une utilisation multi-utilisateur réelle : dans ce MVP personnel, tout utilisateur authentifié peut créer ou modifier un exercice global.
 - Une déconnexion serveur avec révocation demanderait une liste de tokens révoqués. Le MVP utilise un JWT stateless : `/api/auth/logout` confirme la déconnexion et le client supprime le token.
+- Les contrats de stats existants restent orientés force (`max_weight`, `best_e1rm`) et n'exposent pas encore de records dédiés de distance, durée, calories, assistance ou lest.
 - Les statistiques avancées par groupe musculaire et la détection de stagnation restent à implémenter; le dashboard MVP et la progression par exercice sont disponibles.

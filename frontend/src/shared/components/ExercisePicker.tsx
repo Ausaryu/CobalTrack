@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getExerciseById, getExerciseFilters, searchExercises } from "../api/exercises";
+import type { Exercise } from "../api/types";
+import {
+  getPreferredExerciseLanguage,
+  getTranslatedExerciseName,
+} from "../utils/exerciseTranslations";
 import { Button } from "./Button";
 import { SelectField } from "./SelectField";
 import { TextField } from "./TextField";
@@ -9,10 +14,14 @@ import { TextField } from "./TextField";
 interface ExercisePickerProps {
   label: string;
   value: number | null;
-  onChange: (exerciseId: number) => void;
+  onChange: (exerciseId: number, exercise?: Exercise) => void;
+  onResolved?: (exercise: Exercise) => void;
 }
 
-export function ExercisePicker({ label, value, onChange }: ExercisePickerProps) {
+export function ExercisePicker({ label, value, onChange, onResolved }: ExercisePickerProps) {
+  const queryClient = useQueryClient();
+  const preferredLanguage = getPreferredExerciseLanguage();
+  const resolvedKey = useRef<string | null>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -49,6 +58,14 @@ export function ExercisePicker({ label, value, onChange }: ExercisePickerProps) 
   const total = searchQuery.data?.total ?? 0;
   const groups = filtersQuery.data?.muscle_groups ?? [];
 
+  useEffect(() => {
+    if (!selected || !onResolved) return;
+    const key = `${selected.id}:${selected.updated_at}:${selected.tracking_type}`;
+    if (resolvedKey.current === key) return;
+    resolvedKey.current = key;
+    onResolved(selected);
+  }, [onResolved, selected]);
+
   return (
     <div className="exercise-picker">
       <span className="exercise-picker-label">{label}</span>
@@ -59,7 +76,7 @@ export function ExercisePicker({ label, value, onChange }: ExercisePickerProps) 
       >
         {selected ? (
           <>
-            <strong>{selected.name}</strong>
+            <strong>{getTranslatedExerciseName(selected, preferredLanguage)}</strong>
             <small>
               {selected.muscle_group || selected.target || selected.body_part || "Groupe non renseigné"}
               {selected.equipment ? ` · ${selected.equipment}` : ""}
@@ -104,11 +121,12 @@ export function ExercisePicker({ label, value, onChange }: ExercisePickerProps) 
                   className={`exercise-option${exercise.id === value ? " selected" : ""}`}
                   key={exercise.id}
                   onClick={() => {
-                    onChange(exercise.id);
+                    queryClient.setQueryData(["exercise", exercise.id], exercise);
+                    onChange(exercise.id, exercise);
                     setOpen(false);
                   }}
                 >
-                  <strong>{exercise.name}</strong>
+                  <strong>{getTranslatedExerciseName(exercise, preferredLanguage)}</strong>
                   <span>
                     {exercise.muscle_group || exercise.target || exercise.body_part || "—"}
                     {exercise.equipment ? ` · ${exercise.equipment}` : ""}

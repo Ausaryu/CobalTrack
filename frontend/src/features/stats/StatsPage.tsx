@@ -8,6 +8,7 @@ import { ErrorState } from "../../shared/components/ErrorState";
 import { ExercisePicker } from "../../shared/components/ExercisePicker";
 import { LoadingState } from "../../shared/components/LoadingState";
 import { PageHeader } from "../../shared/components/PageHeader";
+import { useExerciseNames } from "../../shared/hooks/useExerciseNames";
 import { formatDate, formatNumber } from "../../shared/utils/format";
 
 export function StatsPage() {
@@ -103,13 +104,16 @@ function ProgressChart({ history }: { history: ExerciseProgressPoint[] }) {
 }
 
 function ProgressView({ progress }: { progress: ExerciseProgress }) {
+  const exerciseNames = useExerciseNames([progress.exercise_id]);
+  const exerciseName = exerciseNames.get(progress.exercise_id) || progress.exercise_name;
+
   return (
     <>
       <section className="metric-grid stats-metrics">
         <article className="metric-card metric-accent">
           <span>Séances</span>
           <strong>{progress.total_sessions}</strong>
-          <small>{progress.exercise_name}</small>
+          <small>{exerciseName}</small>
         </article>
         <article className="metric-card">
           <span>Charge maximale</span>
@@ -139,7 +143,7 @@ function ProgressView({ progress }: { progress: ExerciseProgress }) {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Historique</p>
-            <h2>{progress.exercise_name}</h2>
+            <h2>{exerciseName}</h2>
           </div>
         </div>
         {progress.history.length === 0 ? (

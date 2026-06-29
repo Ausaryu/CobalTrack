@@ -66,10 +66,16 @@ class ProgramExercise(Base):
     min_reps: Mapped[int | None] = mapped_column(Integer)
     max_reps: Mapped[int | None] = mapped_column(Integer)
     target_weight: Mapped[float | None] = mapped_column(Float)
+    target_assistance_weight: Mapped[float | None] = mapped_column(Float)
+    target_added_weight: Mapped[float | None] = mapped_column(Float)
+    target_bodyweight: Mapped[float | None] = mapped_column(Float)
+    target_duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    target_distance_meters: Mapped[float | None] = mapped_column(Float)
+    target_calories: Mapped[int | None] = mapped_column(Integer)
+    target_resistance_level: Mapped[float | None] = mapped_column(Float)
     target_rpe: Mapped[float | None] = mapped_column(Float)
     rest_seconds: Mapped[int | None] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)
 
     program_day: Mapped[ProgramDay] = relationship(back_populates="exercises")
     exercise: Mapped["Exercise"] = relationship(back_populates="program_entries")
-

@@ -15,10 +15,12 @@ import { useAdminView } from "../../shared/hooks/useAdminView";
 import {
   getPreferredExerciseLanguage,
   getTranslatedExerciseField,
+  getTranslatedExerciseName,
   setPreferredExerciseLanguage,
   type ExerciseLanguage,
 } from "../../shared/utils/exerciseTranslations";
 import { resolveMediaUrl } from "../../shared/utils/training";
+import { getExerciseTrackingTypeLabel } from "../../shared/utils/exerciseTracking";
 import { ExerciseForm } from "./ExerciseForm";
 import { ExercisePersonalization } from "./ExercisePersonalization";
 
@@ -123,8 +125,7 @@ export function ExerciseDetailPage() {
 
   const exercise = exerciseQuery.data;
   const saveError = saveMutation.error;
-  const translatedName =
-    getTranslatedExerciseField(exercise, "name", preferredLanguage) || exercise.name;
+  const translatedName = getTranslatedExerciseName(exercise, preferredLanguage);
   const translatedInstructions = getTranslatedExerciseField(
     exercise,
     "instructions",
@@ -196,6 +197,10 @@ export function ExerciseDetailPage() {
             <DetailItem
               label="Équipement"
               value={getTranslatedExerciseField(exercise, "equipment", preferredLanguage)}
+            />
+            <DetailItem
+              label="Type de suivi"
+              value={getExerciseTrackingTypeLabel(exercise.tracking_type)}
             />
             <DetailItem
               label="Catégorie"
@@ -281,7 +286,7 @@ export function ExerciseDetailPage() {
         onConfirm={() => deleteMutation.mutate()}
       >
         <p>
-          <strong>{exercise.name}</strong> sera supprimé pour tous les utilisateurs. La suppression
+          <strong>{translatedName}</strong> sera supprimé pour tous les utilisateurs. La suppression
           sera refusée s’il est utilisé dans une séance ou un programme.
         </p>
         {deleteMutation.error ? (

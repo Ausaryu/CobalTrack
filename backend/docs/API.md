@@ -119,7 +119,12 @@ Pour une validation `422`, `detail` est une liste structurée par Pydantic. Code
 | Méthode | URL | Auth | Body | Réponse | Erreurs principales |
 |---|---|---|---|---|---|
 | `GET` | `/api/auth/me` | Bearer | Aucun | Utilisateur connecté | `401` |
+| `PUT` | `/api/auth/me` | Bearer | `{"current_bodyweight_kg":74.5}` | Utilisateur mis à jour | `401`, `422` |
 | `POST` | `/api/auth/logout` | Bearer | Aucun | `{"message":"Logged out"}` | `401` |
+
+`current_bodyweight_kg` est nullable et doit être compris entre 0 et 400 kg lorsqu'il est
+renseigné. Il est renvoyé dans `UserRead` lors de l'inscription, de la connexion et des appels à
+`/api/auth/me`.
 
 ### Exercices
 
@@ -189,6 +194,7 @@ Body de création complet, avec tous les champs sauf `name` optionnels :
   "target": "pectorals",
   "muscle_group": "chest",
   "equipment": "barbell",
+  "tracking_type": "WEIGHT_REPS",
   "instructions": "Keep the shoulder blades retracted.",
   "translations": "{\"en\":{\"name\":\"Bench press\"},\"fr\":{\"name\":\"Développé couché\"}}",
   "image_path": null,
@@ -210,6 +216,7 @@ Réponse simplifiée :
   "target": "pectorals",
   "muscle_group": "chest",
   "equipment": "barbell",
+  "tracking_type": "WEIGHT_REPS",
   "instructions": "Keep the shoulder blades retracted.",
   "translations": "{\"en\":{\"name\":\"Bench press\"},\"fr\":{\"name\":\"Développé couché\"}}",
   "image_path": null,
@@ -272,7 +279,14 @@ Body de création :
         {
           "order_index": 0,
           "weight": 80,
+          "assistance_weight": null,
+          "added_weight": null,
+          "bodyweight": null,
           "reps": 8,
+          "duration_seconds": null,
+          "distance_meters": null,
+          "calories": null,
+          "resistance_level": null,
           "rpe": 8,
           "rest_seconds": 120,
           "is_warmup": false,
@@ -286,6 +300,12 @@ Body de création :
 ```
 
 La réponse ajoute les identifiants, `user_id`, `created_at`, `updated_at`, `workout_session_id` sur chaque exercice et `workout_exercise_id` sur chaque série. Un exercice inconnu dans le body produit `422`.
+
+Pour `BODYWEIGHT_REPS`, `ASSISTED_BODYWEIGHT_REPS` et `ADDED_BODYWEIGHT_REPS`, si le champ
+`bodyweight` d'une série est omis, l'API copie `current_bodyweight_kg` de l'utilisateur connecté
+dans la série. Une valeur explicite, y compris `null`, est conservée. Ce snapshot n'est jamais
+recalculé lorsque le profil change ; un profil sans poids n'empêche pas la création de la séance.
+L'assistance et le lest restent stockés séparément dans `assistance_weight` et `added_weight`.
 
 ### Programmes
 
@@ -319,6 +339,13 @@ Body de création :
           "min_reps": 6,
           "max_reps": 8,
           "target_weight": 80,
+          "target_assistance_weight": null,
+          "target_added_weight": null,
+          "target_bodyweight": null,
+          "target_duration_seconds": null,
+          "target_distance_meters": null,
+          "target_calories": null,
+          "target_resistance_level": null,
           "target_rpe": 8,
           "rest_seconds": 120,
           "notes": null
@@ -328,6 +355,11 @@ Body de création :
   ]
 }
 ```
+
+Les champs de série et de cible dépendent de `Exercise.tracking_type`. Les anciens champs
+`weight` et `target_weight` restent utilisés pour `WEIGHT_REPS`. Les autres types utilisent les
+champs assistance, lest, poids du corps, durée, distance, calories ou résistance correspondants.
+Tous ces champs additionnels sont nullable afin de préserver les anciennes séances et programmes.
 
 La réponse ajoute les identifiants, `user_id`, `created_at`, `updated_at`, `program_id` sur les jours et `program_day_id` sur les exercices. Un exercice inconnu dans le body produit `422`.
 

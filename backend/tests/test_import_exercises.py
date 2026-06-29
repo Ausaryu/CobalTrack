@@ -4,6 +4,7 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.exercise_tracking import ExerciseTrackingType, infer_tracking_type
 from app.models.exercise import Exercise, ExerciseSecondaryMuscle
 from app.models.user import User
 from app.scripts.import_exercises import import_exercises, repair_existing_translations
@@ -79,6 +80,7 @@ def test_import_multilingual_fields_keep_english_as_native(
     assert exercise is not None
     assert exercise.name == "Bicycle crunch"
     assert exercise.equipment == "body weight"
+    assert exercise.tracking_type == ExerciseTrackingType.BODYWEIGHT_REPS
     assert exercise.instructions == "Lie flat.\nPedal."
     assert sorted(muscle.muscle_name for muscle in exercise.secondary_muscles) == [
         "hip flexors",
@@ -161,3 +163,54 @@ def test_repair_existing_json_instructions_preserves_translations(db: Session) -
     assert translations["fr"]["instructions"] == "Allongez-vous..."
     assert clean_exercise.instructions == "Keep your body straight."
     assert clean_exercise.translations is None
+
+
+def test_import_infers_and_validates_tracking_type(
+    db: Session, tmp_path: Path
+) -> None:
+    dataset = tmp_path / "tracking.json"
+    dataset.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "cardio",
+                    "name": "Bike",
+                    "equipment": "  Stationary   Bike ",
+                },
+                {
+                    "id": "unknown",
+                    "name": "Unknown movement",
+                    "equipment": "custom device",
+                },
+                {
+                    "id": "explicit",
+                    "name": "Plank",
+                    "equipment": "body weight",
+                    "tracking_type": "TIME",
+                },
+                {
+                    "id": "invalid-explicit",
+                    "name": "Assisted pull-up",
+                    "equipment": "assisted",
+                    "tracking_type": "not-a-tracking-type",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    import_exercises(db, dataset, "test-dataset")
+    exercises = {
+        exercise.external_id: exercise
+        for exercise in db.scalars(select(Exercise)).all()
+    }
+
+    assert exercises["cardio"].equipment == "Stationary   Bike"
+    assert exercises["cardio"].tracking_type == ExerciseTrackingType.CARDIO
+    assert exercises["unknown"].tracking_type == ExerciseTrackingType.WEIGHT_REPS
+    assert exercises["explicit"].tracking_type == ExerciseTrackingType.TIME
+    assert (
+        exercises["invalid-explicit"].tracking_type
+        == ExerciseTrackingType.ASSISTED_BODYWEIGHT_REPS
+    )
+    assert infer_tracking_type(" unknown equipment ") == ExerciseTrackingType.WEIGHT_REPS

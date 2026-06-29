@@ -9,6 +9,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.database import engine
+from app.exercise_tracking import resolve_tracking_type
 from app.models.exercise import Exercise, ExerciseSecondaryMuscle
 
 
@@ -206,6 +207,7 @@ def import_exercises(
                 select(Exercise).where(Exercise.name == name, Exercise.source == source)
             )
 
+        equipment = _native_field_value(item, ("equipment",))
         values = {
             "external_id": external_id,
             "name": name,
@@ -215,7 +217,11 @@ def import_exercises(
             "muscle_group": _native_field_value(
                 item, ("muscle_group", "muscleGroup")
             ),
-            "equipment": _native_field_value(item, ("equipment",)),
+            "equipment": equipment,
+            "tracking_type": resolve_tracking_type(
+                _first(item, "tracking_type", "trackingType"),
+                equipment,
+            ),
             "instructions": _as_instructions(item.get("instructions")),
             "translations": _serialize_translations(translations),
             "image_path": _normalize_text(

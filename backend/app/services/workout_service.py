@@ -4,32 +4,56 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.exercise_tracking import BODYWEIGHT_TRACKING_TYPES, ExerciseTrackingType
 from app.models.exercise import Exercise
 from app.models.workout import WorkoutExercise, WorkoutSession, WorkoutSet
 from app.schemas.workout import WorkoutCreate, WorkoutExerciseInput, WorkoutUpdate
 
 
-def _validate_exercises(db: Session, exercise_ids: set[int]) -> None:
+def _exercise_tracking_types(
+    db: Session,
+    exercise_ids: set[int],
+) -> dict[int, ExerciseTrackingType]:
     if not exercise_ids:
-        return
-    existing_ids = set(
-        db.scalars(select(Exercise.id).where(Exercise.id.in_(exercise_ids))).all()
+        return {}
+    tracking_types = dict(
+        db.execute(
+            select(Exercise.id, Exercise.tracking_type).where(Exercise.id.in_(exercise_ids))
+        ).all()
     )
-    missing = sorted(exercise_ids - existing_ids)
+    missing = sorted(exercise_ids - tracking_types.keys())
     if missing:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"message": "Unknown exercise ids", "exercise_ids": missing},
         )
+    return tracking_types
 
 
-def _build_exercises(items: list[WorkoutExerciseInput]) -> list[WorkoutExercise]:
+def _build_exercises(
+    items: list[WorkoutExerciseInput],
+    tracking_types: dict[int, ExerciseTrackingType],
+    current_bodyweight_kg: float | None,
+) -> list[WorkoutExercise]:
     return [
         WorkoutExercise(
             exercise_id=item.exercise_id,
             order_index=item.order_index,
             notes=item.notes,
-            sets=[WorkoutSet(**set_item.model_dump()) for set_item in item.sets],
+            sets=[
+                WorkoutSet(
+                    **(
+                        set_item.model_dump()
+                        | (
+                            {"bodyweight": current_bodyweight_kg}
+                            if tracking_types[item.exercise_id] in BODYWEIGHT_TRACKING_TYPES
+                            and "bodyweight" not in set_item.model_fields_set
+                            else {}
+                        )
+                    )
+                )
+                for set_item in item.sets
+            ],
         )
         for item in items
     ]
@@ -78,12 +102,21 @@ def get_workout(db: Session, user_id: int, workout_id: int) -> WorkoutSession:
     return workout
 
 
-def create_workout(db: Session, user_id: int, payload: WorkoutCreate) -> WorkoutSession:
-    _validate_exercises(db, {item.exercise_id for item in payload.exercises})
+def create_workout(
+    db: Session,
+    user_id: int,
+    payload: WorkoutCreate,
+    current_bodyweight_kg: float | None = None,
+) -> WorkoutSession:
+    tracking_types = _exercise_tracking_types(
+        db, {item.exercise_id for item in payload.exercises}
+    )
     workout = WorkoutSession(
         user_id=user_id,
         **payload.model_dump(exclude={"exercises"}),
-        exercises=_build_exercises(payload.exercises),
+        exercises=_build_exercises(
+            payload.exercises, tracking_types, current_bodyweight_kg
+        ),
     )
     db.add(workout)
     db.commit()
@@ -92,7 +125,11 @@ def create_workout(db: Session, user_id: int, payload: WorkoutCreate) -> Workout
 
 
 def update_workout(
-    db: Session, user_id: int, workout_id: int, payload: WorkoutUpdate
+    db: Session,
+    user_id: int,
+    workout_id: int,
+    payload: WorkoutUpdate,
+    current_bodyweight_kg: float | None = None,
 ) -> WorkoutSession:
     workout = get_workout(db, user_id, workout_id)
     values = payload.model_dump(exclude_unset=True, exclude={"exercises"})
@@ -103,10 +140,14 @@ def update_workout(
 
     if "exercises" in payload.model_fields_set:
         items = payload.exercises or []
-        _validate_exercises(db, {item.exercise_id for item in items})
+        tracking_types = _exercise_tracking_types(
+            db, {item.exercise_id for item in items}
+        )
         workout.exercises.clear()
         db.flush()
-        workout.exercises.extend(_build_exercises(items))
+        workout.exercises.extend(
+            _build_exercises(items, tracking_types, current_bodyweight_kg)
+        )
 
     db.commit()
     db.refresh(workout)
@@ -117,4 +158,3 @@ def delete_workout(db: Session, user_id: int, workout_id: int) -> None:
     workout = get_workout(db, user_id, workout_id)
     db.delete(workout)
     db.commit()
-

@@ -66,7 +66,14 @@ class WorkoutSet(Base):
     )
     order_index: Mapped[int] = mapped_column(Integer, default=0)
     weight: Mapped[float | None] = mapped_column(Float)
+    assistance_weight: Mapped[float | None] = mapped_column(Float)
+    added_weight: Mapped[float | None] = mapped_column(Float)
+    bodyweight: Mapped[float | None] = mapped_column(Float)
     reps: Mapped[int | None] = mapped_column(Integer)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    distance_meters: Mapped[float | None] = mapped_column(Float)
+    calories: Mapped[int | None] = mapped_column(Integer)
+    resistance_level: Mapped[float | None] = mapped_column(Float)
     rpe: Mapped[float | None] = mapped_column(Float)
     rest_seconds: Mapped[int | None] = mapped_column(Integer)
     is_warmup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -74,4 +81,3 @@ class WorkoutSet(Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     workout_exercise: Mapped[WorkoutExercise] = relationship(back_populates="sets")
-

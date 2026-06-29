@@ -556,3 +556,141 @@ npm run test:backend                     → 120 passed avant ajout du classemen
 py_compile                               → OK après ajout du classement
 recherche DB locale `traction`, limit=1 → `pull-up` en premier résultat
 ```
+
+## Passe suivante — type métier de suivi des exercices
+
+### Date
+
+29 juin 2026
+
+### Changements
+
+- ajout de l'enum partagé `ExerciseTrackingType` avec les valeurs `WEIGHT_REPS`, `BODYWEIGHT_REPS`, `ASSISTED_BODYWEIGHT_REPS`, `ADDED_BODYWEIGHT_REPS`, `CARDIO`, `TIME` et `REPS_ONLY` ;
+- ajout de `exercises.tracking_type` au modèle SQLAlchemy et aux schémas `ExerciseCreate`, `ExerciseUpdate` et `ExerciseRead` ;
+- migration `20260629_0004_add_exercise_tracking_type.py`, colonne `VARCHAR(32)` non nullable avec défaut `WEIGHT_REPS` ;
+- backfill SQL des exercices existants à partir d'une version normalisée de `equipment`, sans modifier la valeur d'équipement ;
+- centralisation du mapping d'import dans `app/exercise_tracking.py` ; une valeur `tracking_type` valide du dataset est prioritaire, une valeur absente ou invalide utilise le mapping équipement ;
+- ajout du type union et des libellés français frontend ;
+- ajout du sélecteur « Type de suivi » au formulaire d'exercice et affichage dans le détail ;
+- aucun changement de structure de `WorkoutSet` ni des calculs statistiques.
+
+### Backfill local
+
+La commande `alembic upgrade head` a migré les 1 324 exercices locaux :
+
+```text
+ADDED_BODYWEIGHT_REPS       36
+ASSISTED_BODYWEIGHT_REPS    15
+BODYWEIGHT_REPS            366
+CARDIO                       5
+WEIGHT_REPS                902
+```
+
+Les types `TIME` et `REPS_ONLY` ne peuvent pas être déduits du mapping équipement demandé ; ils restent sélectionnables manuellement ou importables explicitement.
+
+### Vérifications
+
+```text
+backend/.venv/bin/pytest -q tests/test_import_exercises.py tests/test_api.py  → OK
+backend/.venv/bin/pytest -q                                                  → OK
+cd frontend && npm run build                                                 → OK
+DATABASE_URL=<base-temporaire> alembic upgrade head                          → OK
+DATABASE_URL=<base-temporaire> alembic check                                 → No new upgrade operations detected
+cd backend && .venv/bin/alembic upgrade head                                 → 20260629_0004 appliquée
+```
+
+### Prochaine passe
+
+- adapter la saisie des séries selon `tracking_type` ;
+- étendre `WorkoutSet` pour la durée, la distance, les calories, la résistance et la distinction assistance/lest ;
+- adapter ensuite les calculs de volume, e1RM et statistiques par type de suivi.
+
+## Passe suivante — séries et programmes selon le type de suivi
+
+### Date
+
+29 juin 2026
+
+### Changements
+
+- migration additive `20260629_0005_tracking_specific_set_fields.py` ;
+- ajout à `workout_sets` de `assistance_weight`, `added_weight`, `bodyweight`, `duration_seconds`, `distance_meters`, `calories` et `resistance_level` ;
+- ajout des équivalents `target_*` à `program_exercises` ;
+- mise à jour des modèles SQLAlchemy et contrats Pydantic avec validation de toutes les valeurs positives ou nulles ;
+- helper central `calculate_set_tracking_metrics()` dans `app/exercise_tracking.py` pour `display_load`, `effective_weight`, `volume`, `best_strength_value` et `e1rm` ;
+- adaptation du dashboard et de la progression : volumes spécifiques, e1RM limité aux types de force, cardio/temps exclus des tops volume et records de force ;
+- adaptation des types TypeScript et des formulaires séance/programme selon `tracking_type` via une matrice de visibilité partagée ;
+- affichage compact des nouvelles valeurs dans les détails de séance et programme.
+
+### Compatibilité
+
+- `weight` et `target_weight` sont conservés ;
+- les 14 nouvelles colonnes sont nullable et aucune donnée existante n'est réécrite ;
+- une migration test avec `weight=100` et `target_weight=80` a conservé ces valeurs et initialisé les nouveaux champs à `null` ;
+- les réponses stats existantes ne changent pas de forme.
+
+### Vérifications
+
+```text
+backend/.venv/bin/pytest -q tests/test_tracking_inputs.py tests/test_stats.py tests/test_validations.py  → OK
+backend/.venv/bin/pytest -q                                                               → OK
+cd frontend && npm run build                                                              → OK
+DATABASE_URL=<base-temporaire-0004> alembic upgrade head                                  → OK
+DATABASE_URL=<base-temporaire-0004> alembic check                                         → No new upgrade operations detected
+cd backend && .venv/bin/alembic upgrade head                                               → 20260629_0005 appliquée
+```
+
+### Limites restantes
+
+- les schémas de stats historiques restent centrés sur `max_weight`, `max_reps`, `best_e1rm` et `max_volume` ;
+- les records cardio/temps dédiés (distance, durée, calories, résistance) ne sont pas encore exposés ;
+- l'assistance décroissante et le lest ajouté ne disposent pas encore de classements ou graphiques spécialisés ;
+- les unités du dashboard devront être séparées dans une future refonte, car un volume `REPS_ONLY` représente des répétitions et non des kilogrammes.
+
+## Passe suivante — poids du corps de profil et snapshot des séries
+
+### Date
+
+29 juin 2026
+
+### Changements
+
+- migration additive `20260629_0006_add_user_bodyweight.py` ajoutant `users.current_bodyweight_kg` nullable ;
+- ajout de `current_bodyweight_kg` à `User`, `UserRead` et au nouveau payload `UserUpdate`, avec validation de 0 à 400 kg ;
+- ajout de la route protégée `PUT /api/auth/me` et du formulaire de poids actuel dans la page profil ;
+- remplissage automatique de `WorkoutSet.bodyweight` depuis le profil lorsque le champ est omis pour un exercice poids du corps, assisté ou lesté ;
+- priorité conservée à une valeur explicite, sans blocage lorsque le profil ne contient aucun poids ;
+- suppression de l'input poids du corps répété dans les séries et affichage d'une information sur le snapshot utilisé ;
+- maintien séparé de `assistance_weight` et `added_weight`, sans stockage de la charge effective ;
+- remplacement des libellés RPE visibles par « Difficulté » et ajout de l'aide de saisie de 1 à 10 ;
+- formulaires séance et programme alignés sur les champs utiles de chaque `tracking_type` ;
+- calculs de volume et d'e1RM du service de stats délégués au helper central `calculate_set_tracking_metrics()`.
+
+### Compatibilité et snapshot
+
+- `workout_sets.bodyweight` reste nullable et aucune ancienne séance n'est réécrite ;
+- le poids du profil est copié dans chaque nouvelle série concernée au moment de la création ou du remplacement des exercices d'une séance ;
+- changer le poids du profil n'affecte pas les snapshots déjà enregistrés ;
+- une série historique sans poids reste lisible et les statistiques retournent des valeurs neutres sans erreur ;
+- les champs avancés restent disponibles dans les contrats API, même lorsqu'ils ne sont pas affichés dans le formulaire.
+
+### Vérifications
+
+```text
+backend/.venv/bin/pytest -q tests/test_bodyweight_profile.py tests/test_stats.py tests/test_api.py  → OK
+cd frontend && npm run build                                                               → OK
+DATABASE_URL=<base-temporaire> alembic upgrade head                                        → 20260629_0006 (head)
+backend/.venv/bin/alembic check                                                            → No new upgrade operations detected
+backend/.venv/bin/pytest --collect-only -q                                                 → 147 tests collectés
+python -m compileall -q app tests alembic                                                  → OK
+```
+
+La relance finale de la suite complète dans cette session n'a pas produit de résultat : le thread
+AnyIO de `TestClient` reste bloqué dans le sandbox, y compris avec une application FastAPI vide,
+et l'exécution hors sandbox a été refusée par la limite d'usage de l'environnement. La commande
+`backend/.venv/bin/pytest -q` reste à relancer dans le terminal local après cette passe.
+
+### Limites restantes
+
+- le frontend ne possède pas encore de runner de tests unitaires ; la matrice de visibilité TypeScript est validée par le compilateur et le build Vite ;
+- les réponses de statistiques restent volontairement compatibles avec les contrats orientés force existants et n'exposent pas encore de records dédiés cardio, temps, assistance ou lest.

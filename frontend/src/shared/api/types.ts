@@ -3,6 +3,7 @@ export interface User {
   username: string;
   is_active: boolean;
   is_admin: boolean;
+  current_bodyweight_kg: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -20,10 +21,23 @@ export interface LoginPayload {
 
 export type RegisterPayload = LoginPayload;
 
+export interface UserUpdatePayload {
+  current_bodyweight_kg: number | null;
+}
+
 export interface SecondaryMuscle {
   id: number;
   muscle_name: string;
 }
+
+export type ExerciseTrackingType =
+  | "WEIGHT_REPS"
+  | "BODYWEIGHT_REPS"
+  | "ASSISTED_BODYWEIGHT_REPS"
+  | "ADDED_BODYWEIGHT_REPS"
+  | "CARDIO"
+  | "TIME"
+  | "REPS_ONLY";
 
 export interface Exercise {
   id: number;
@@ -34,6 +48,7 @@ export interface Exercise {
   target: string | null;
   muscle_group: string | null;
   equipment: string | null;
+  tracking_type: ExerciseTrackingType;
   instructions: string | null;
   translations: string | null;
   image_path: string | null;
@@ -64,6 +79,7 @@ export interface ExerciseCreate {
   target?: string | null;
   muscle_group?: string | null;
   equipment?: string | null;
+  tracking_type?: ExerciseTrackingType;
   instructions?: string | null;
   translations?: string | null;
   image_path?: string | null;
@@ -94,7 +110,14 @@ export interface WorkoutSet {
   workout_exercise_id: number;
   order_index: number;
   weight: number | null;
+  assistance_weight: number | null;
+  added_weight: number | null;
+  bodyweight: number | null;
   reps: number | null;
+  duration_seconds: number | null;
+  distance_meters: number | null;
+  calories: number | null;
+  resistance_level: number | null;
   rpe: number | null;
   rest_seconds: number | null;
   is_warmup: boolean;
@@ -134,7 +157,14 @@ export interface WorkoutListResponse {
 export interface WorkoutSetCreate {
   order_index?: number;
   weight?: number | null;
+  assistance_weight?: number | null;
+  added_weight?: number | null;
+  bodyweight?: number | null;
   reps?: number | null;
+  duration_seconds?: number | null;
+  distance_meters?: number | null;
+  calories?: number | null;
+  resistance_level?: number | null;
   rpe?: number | null;
   rest_seconds?: number | null;
   is_warmup?: boolean;
@@ -169,6 +199,13 @@ export interface ProgramExercise {
   min_reps: number | null;
   max_reps: number | null;
   target_weight: number | null;
+  target_assistance_weight: number | null;
+  target_added_weight: number | null;
+  target_bodyweight: number | null;
+  target_duration_seconds: number | null;
+  target_distance_meters: number | null;
+  target_calories: number | null;
+  target_resistance_level: number | null;
   target_rpe: number | null;
   rest_seconds: number | null;
   notes: string | null;
@@ -208,6 +245,13 @@ export interface ProgramExerciseCreate {
   min_reps?: number | null;
   max_reps?: number | null;
   target_weight?: number | null;
+  target_assistance_weight?: number | null;
+  target_added_weight?: number | null;
+  target_bodyweight?: number | null;
+  target_duration_seconds?: number | null;
+  target_distance_meters?: number | null;
+  target_calories?: number | null;
+  target_resistance_level?: number | null;
   target_rpe?: number | null;
   rest_seconds?: number | null;
   notes?: string | null;

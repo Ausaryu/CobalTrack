@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.exercise_tracking import ExerciseTrackingType
+
 
 class ExerciseCreate(BaseModel):
     external_id: str | None = Field(default=None, max_length=255)
@@ -11,6 +13,7 @@ class ExerciseCreate(BaseModel):
     target: str | None = Field(default=None, max_length=100)
     muscle_group: str | None = Field(default=None, max_length=100)
     equipment: str | None = Field(default=None, max_length=100)
+    tracking_type: ExerciseTrackingType = ExerciseTrackingType.WEIGHT_REPS
     instructions: str | None = None
     translations: str | None = None
     image_path: str | None = Field(default=None, max_length=500)
@@ -42,6 +45,7 @@ class ExerciseUpdate(BaseModel):
     target: str | None = Field(default=None, max_length=100)
     muscle_group: str | None = Field(default=None, max_length=100)
     equipment: str | None = Field(default=None, max_length=100)
+    tracking_type: ExerciseTrackingType = ExerciseTrackingType.WEIGHT_REPS
     instructions: str | None = None
     translations: str | None = None
     image_path: str | None = Field(default=None, max_length=500)
@@ -85,6 +89,7 @@ class ExerciseRead(BaseModel):
     target: str | None
     muscle_group: str | None
     equipment: str | None
+    tracking_type: ExerciseTrackingType
     instructions: str | None
     translations: str | None
     image_path: str | None

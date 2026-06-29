@@ -126,3 +126,10 @@ export function getTranslatedExerciseField(
     null
   );
 }
+
+export function getTranslatedExerciseName(
+  exercise: Exercise,
+  preferredLanguage: ExerciseLanguage = getPreferredExerciseLanguage(),
+): string {
+  return getTranslatedExerciseField(exercise, "name", preferredLanguage) || exercise.name;
+}

@@ -23,6 +23,7 @@ def test_openapi_documentation_is_available(client: TestClient) -> None:
     ("method", "path"),
     [
         ("GET", "/api/auth/me"),
+        ("PUT", "/api/auth/me"),
         ("POST", "/api/auth/logout"),
         ("GET", "/api/exercises"),
         ("GET", "/api/exercises/search"),
@@ -165,6 +166,34 @@ def test_non_admin_cannot_mutate_global_exercises(client: TestClient) -> None:
         f"/api/exercises/{exercise_id}",
         headers=member,
     ).status_code == 403
+
+
+def test_exercise_tracking_type_is_returned_and_can_be_selected(
+    client: TestClient,
+) -> None:
+    admin = register(client, "tracking-admin")
+    default_exercise = client.post(
+        "/api/exercises",
+        headers=admin,
+        json={"name": "Default tracking"},
+    )
+    assert default_exercise.status_code == 201
+    assert default_exercise.json()["tracking_type"] == "WEIGHT_REPS"
+
+    timed_exercise = client.post(
+        "/api/exercises",
+        headers=admin,
+        json={"name": "Plank", "tracking_type": "TIME"},
+    )
+    assert timed_exercise.status_code == 201
+    assert timed_exercise.json()["tracking_type"] == "TIME"
+
+    invalid_exercise = client.post(
+        "/api/exercises",
+        headers=admin,
+        json={"name": "Invalid", "tracking_type": "DISTANCE_ONLY"},
+    )
+    assert invalid_exercise.status_code == 422
 
 
 def test_workouts_and_programs_are_scoped_to_the_owner(client: TestClient) -> None:

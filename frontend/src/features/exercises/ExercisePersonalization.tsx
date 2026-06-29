@@ -9,6 +9,7 @@ import { ErrorState } from "../../shared/components/ErrorState";
 import { LoadingState } from "../../shared/components/LoadingState";
 import { TextareaField } from "../../shared/components/TextareaField";
 import { TextField } from "../../shared/components/TextField";
+import { getTranslatedExerciseName } from "../../shared/utils/exerciseTranslations";
 
 interface ExercisePersonalizationProps {
   exercise: Exercise;
@@ -52,6 +53,7 @@ function PersonalizationEditor({
   onChange,
 }: ExercisePersonalizationProps & { personalization: UserExercise | null }) {
   const queryClient = useQueryClient();
+  const translatedName = getTranslatedExerciseName(exercise);
   const [customName, setCustomName] = useState(personalization?.custom_name || "");
   const [customNotes, setCustomNotes] = useState(personalization?.custom_notes || "");
   const [isFavorite, setIsFavorite] = useState(personalization?.is_favorite || false);
@@ -97,7 +99,7 @@ function PersonalizationEditor({
       <div className="section-heading">
         <div>
           <p className="eyebrow">Préférences personnelles</p>
-          <h2>{exercise.name}</h2>
+          <h2>{translatedName}</h2>
         </div>
         <Button variant="ghost" size="small" onClick={onClose}>Fermer</Button>
       </div>
@@ -106,7 +108,7 @@ function PersonalizationEditor({
           label="Nom personnalisé"
           value={customName}
           onChange={(e) => setCustomName(e.target.value)}
-          placeholder={exercise.name}
+          placeholder={translatedName}
         />
         <TextareaField
           label="Notes personnelles"

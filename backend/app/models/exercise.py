@@ -1,9 +1,10 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Enum, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.exercise_tracking import ExerciseTrackingType
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
@@ -23,6 +24,17 @@ class Exercise(TimestampMixin, Base):
     target: Mapped[str | None] = mapped_column(String(100))
     muscle_group: Mapped[str | None] = mapped_column(String(100))
     equipment: Mapped[str | None] = mapped_column(String(100))
+    tracking_type: Mapped[ExerciseTrackingType] = mapped_column(
+        Enum(
+            ExerciseTrackingType,
+            native_enum=False,
+            create_constraint=False,
+            length=32,
+        ),
+        default=ExerciseTrackingType.WEIGHT_REPS,
+        server_default=ExerciseTrackingType.WEIGHT_REPS.value,
+        nullable=False,
+    )
     instructions: Mapped[str | None] = mapped_column(Text)
     translations: Mapped[str | None] = mapped_column(Text)
     image_path: Mapped[str | None] = mapped_column(String(500))

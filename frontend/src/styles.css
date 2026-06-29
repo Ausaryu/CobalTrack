@@ -756,6 +756,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .profile-panel h2,
@@ -774,6 +775,30 @@ h2 {
   background: linear-gradient(145deg, #3a70f0, #173e9f);
   font-size: 2rem;
   font-weight: 900;
+}
+
+.profile-bodyweight-panel {
+  display: grid;
+  align-items: end;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+}
+
+.profile-bodyweight-panel h2,
+.profile-bodyweight-panel p {
+  margin-bottom: 0.45rem;
+}
+
+.profile-bodyweight-panel form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-success {
+  margin: 0;
+  color: var(--success);
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .state {
@@ -1137,6 +1162,27 @@ h2 {
   border-radius: 11px;
   background: #fff;
   grid-template-columns: auto repeat(4, minmax(95px, 1fr)) minmax(150px, 1.2fr) auto;
+}
+
+.set-row.set-row-tracking {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.tracking-type-hint {
+  margin: 0 0 0.8rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.tracking-bodyweight-info {
+  margin: -0.35rem 0 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 9px;
+  color: #47556d;
+  background: #eef3fb;
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .set-row > strong {
@@ -1610,12 +1656,21 @@ h2 {
     flex-direction: column;
   }
 
+  .profile-bodyweight-panel {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
   .toolbar,
   .form-layout,
   .form-layout-dense,
   .set-row,
   .planned-summary,
   .record-row {
+    grid-template-columns: 1fr;
+  }
+
+  .set-row.set-row-tracking {
     grid-template-columns: 1fr;
   }
 

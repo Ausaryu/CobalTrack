@@ -10,6 +10,13 @@ class ProgramExerciseInput(BaseModel):
     min_reps: int | None = Field(default=None, ge=0)
     max_reps: int | None = Field(default=None, ge=0)
     target_weight: float | None = Field(default=None, ge=0)
+    target_assistance_weight: float | None = Field(default=None, ge=0)
+    target_added_weight: float | None = Field(default=None, ge=0)
+    target_bodyweight: float | None = Field(default=None, ge=0)
+    target_duration_seconds: int | None = Field(default=None, ge=0)
+    target_distance_meters: float | None = Field(default=None, ge=0)
+    target_calories: int | None = Field(default=None, ge=0)
+    target_resistance_level: float | None = Field(default=None, ge=0)
     target_rpe: float | None = Field(default=None, ge=0, le=10)
     rest_seconds: int | None = Field(default=None, ge=0)
     notes: str | None = None

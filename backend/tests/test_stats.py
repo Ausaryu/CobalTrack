@@ -7,9 +7,16 @@ from tests.conftest import register
 
 
 def create_exercise(
-    client: TestClient, headers: dict[str, str], name: str
+    client: TestClient,
+    headers: dict[str, str],
+    name: str,
+    tracking_type: str = "WEIGHT_REPS",
 ) -> int:
-    response = client.post("/api/exercises", headers=headers, json={"name": name})
+    response = client.post(
+        "/api/exercises",
+        headers=headers,
+        json={"name": name, "tracking_type": tracking_type},
+    )
     assert response.status_code == 201, response.text
     return response.json()["id"]
 
@@ -151,3 +158,79 @@ def test_dashboard_progress_and_user_isolation(client: TestClient) -> None:
     other_squat = client.get(f"/api/stats/exercises/{squat_id}", headers=other_user)
     assert other_squat.status_code == 200
     assert other_squat.json()["total_sessions"] == 0
+
+
+def test_stats_use_tracking_specific_volume_and_ignore_cardio_time(
+    client: TestClient,
+) -> None:
+    headers = register(client, "tracking-stats")
+    weight_id = create_exercise(client, headers, "Bench", "WEIGHT_REPS")
+    assisted_id = create_exercise(
+        client, headers, "Assisted pull-up", "ASSISTED_BODYWEIGHT_REPS"
+    )
+    added_id = create_exercise(
+        client, headers, "Weighted pull-up", "ADDED_BODYWEIGHT_REPS"
+    )
+    reps_id = create_exercise(client, headers, "Air squat", "REPS_ONLY")
+    bodyweight_id = create_exercise(
+        client, headers, "Push-up", "BODYWEIGHT_REPS"
+    )
+    cardio_id = create_exercise(client, headers, "Bike", "CARDIO")
+    time_id = create_exercise(client, headers, "Plank", "TIME")
+
+    create_workout(
+        client,
+        headers,
+        "Mixed metrics",
+        [
+            {"exercise_id": weight_id, "sets": [{"weight": 100, "reps": 5}]},
+            {
+                "exercise_id": assisted_id,
+                "sets": [{"bodyweight": 80, "assistance_weight": 20, "reps": 5}],
+            },
+            {
+                "exercise_id": added_id,
+                "sets": [{"bodyweight": 80, "added_weight": 20, "reps": 5}],
+            },
+            {"exercise_id": reps_id, "sets": [{"reps": 10}]},
+            {"exercise_id": bodyweight_id, "sets": [{"bodyweight": 75, "reps": 7}]},
+            {
+                "exercise_id": cardio_id,
+                "sets": [{"duration_seconds": 1200, "distance_meters": 5000}],
+            },
+            {"exercise_id": time_id, "sets": [{"duration_seconds": 90}]},
+        ],
+    )
+
+    dashboard = client.get("/api/stats/dashboard", headers=headers)
+    assert dashboard.status_code == 200
+    payload = dashboard.json()
+    assert payload["weekly_volume"] == 1317.0
+    totals = {
+        item["exercise_id"]: item["total_volume"]
+        for item in payload["top_exercises_by_volume"]
+    }
+    assert totals[weight_id] == 500.0
+    assert totals[assisted_id] == 300.0
+    assert totals[added_id] == 500.0
+    assert totals[reps_id] == 10.0
+    assert totals[bodyweight_id] == 7.0
+    assert cardio_id not in totals
+    assert time_id not in totals
+    record_ids = {item["exercise_id"] for item in payload["recent_records"]}
+    assert cardio_id not in record_ids
+    assert time_id not in record_ids
+
+    assisted_progress = client.get(
+        f"/api/stats/exercises/{assisted_id}", headers=headers
+    ).json()
+    assert assisted_progress["max_weight"] == 60.0
+    assert assisted_progress["max_volume"] == 300.0
+    assert assisted_progress["best_e1rm"] == 70.0
+
+    cardio_progress = client.get(
+        f"/api/stats/exercises/{cardio_id}", headers=headers
+    ).json()
+    assert cardio_progress["total_sessions"] == 1
+    assert cardio_progress["max_volume"] == 0.0
+    assert cardio_progress["best_e1rm"] == 0.0

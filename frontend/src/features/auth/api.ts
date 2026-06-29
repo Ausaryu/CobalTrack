@@ -4,6 +4,7 @@ import type {
   LoginPayload,
   RegisterPayload,
   User,
+  UserUpdatePayload,
 } from "../../shared/api/types";
 
 export function login(payload: LoginPayload): Promise<AuthToken> {
@@ -16,6 +17,10 @@ export function register(payload: RegisterPayload): Promise<AuthToken> {
 
 export function getCurrentUser(): Promise<User> {
   return apiClient.get<User>("/api/auth/me");
+}
+
+export function updateCurrentUser(payload: UserUpdatePayload): Promise<User> {
+  return apiClient.put<User, UserUpdatePayload>("/api/auth/me", payload);
 }
 
 export function logout(): Promise<{ message: string }> {

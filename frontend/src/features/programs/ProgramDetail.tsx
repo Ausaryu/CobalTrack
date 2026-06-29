@@ -1,6 +1,7 @@
 import type { Program } from "../../shared/api/types";
 import { Button } from "../../shared/components/Button";
-import { useExerciseNames } from "../../shared/hooks/useExerciseNames";
+import { useExercisesById } from "../../shared/hooks/useExerciseNames";
+import { getTranslatedExerciseName } from "../../shared/utils/exerciseTranslations";
 
 interface ProgramDetailProps {
   program: Program;
@@ -11,7 +12,7 @@ interface ProgramDetailProps {
 
 export function ProgramDetail({ program, onClose, onEdit, onDuplicate }: ProgramDetailProps) {
   const allIds = program.days.flatMap((day) => day.exercises.map((e) => e.exercise_id));
-  const names = useExerciseNames(allIds);
+  const exercises = useExercisesById(allIds);
 
   return (
     <section className="content-panel detail-panel">
@@ -33,9 +34,23 @@ export function ProgramDetail({ program, onClose, onEdit, onDuplicate }: Program
             <h3>{day.name}</h3>
             {day.exercises.map((entry) => (
               <div className="planned-summary" key={entry.id}>
-                <strong>{names.get(entry.exercise_id) || `Exercice #${entry.exercise_id}`}</strong>
+                <strong>
+                  {exercises.has(entry.exercise_id)
+                    ? getTranslatedExerciseName(exercises.get(entry.exercise_id)!)
+                    : `Exercice #${entry.exercise_id}`}
+                </strong>
                 <span>{entry.sets_count} série(s){entry.min_reps !== null ? ` · ${entry.min_reps}` : ""}{entry.max_reps !== null ? `–${entry.max_reps} reps` : " reps"}</span>
-                <small>{entry.target_weight !== null ? `${entry.target_weight} kg` : "Charge libre"}{entry.target_rpe !== null ? ` · RPE ${entry.target_rpe}` : ""}</small>
+                <small>
+                  {entry.target_weight !== null ? `${entry.target_weight} kg` : ""}
+                  {entry.target_assistance_weight !== null ? `Assistance ${entry.target_assistance_weight} kg` : ""}
+                  {entry.target_added_weight !== null ? `Lest ${entry.target_added_weight} kg` : ""}
+                  {entry.target_bodyweight !== null ? ` · PDC ${entry.target_bodyweight} kg` : ""}
+                  {entry.target_duration_seconds !== null ? ` · ${entry.target_duration_seconds} s` : ""}
+                  {entry.target_distance_meters !== null ? ` · ${entry.target_distance_meters} m` : ""}
+                  {entry.target_calories !== null ? ` · ${entry.target_calories} kcal` : ""}
+                  {entry.target_resistance_level !== null ? ` · Niveau ${entry.target_resistance_level}` : ""}
+                  {entry.target_rpe !== null ? ` · Difficulté ${entry.target_rpe}` : ""}
+                </small>
               </div>
             ))}
           </article>

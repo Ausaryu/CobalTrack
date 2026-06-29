@@ -6,7 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 class WorkoutSetInput(BaseModel):
     order_index: int = Field(default=0, ge=0)
     weight: float | None = Field(default=None, ge=0)
+    assistance_weight: float | None = Field(default=None, ge=0)
+    added_weight: float | None = Field(default=None, ge=0)
+    bodyweight: float | None = Field(default=None, ge=0)
     reps: int | None = Field(default=None, ge=0)
+    duration_seconds: int | None = Field(default=None, ge=0)
+    distance_meters: float | None = Field(default=None, ge=0)
+    calories: int | None = Field(default=None, ge=0)
+    resistance_level: float | None = Field(default=None, ge=0)
     rpe: float | None = Field(default=None, ge=0, le=10)
     rest_seconds: int | None = Field(default=None, ge=0)
     is_warmup: bool = False
@@ -77,4 +84,3 @@ class WorkoutRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     exercises: list[WorkoutExerciseRead]
-

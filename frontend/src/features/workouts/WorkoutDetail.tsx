@@ -1,7 +1,17 @@
-import type { WorkoutExercise, WorkoutSession } from "../../shared/api/types";
+import type {
+  ExerciseTrackingType,
+  WorkoutExercise,
+  WorkoutSession,
+  WorkoutSet,
+} from "../../shared/api/types";
 import { Button } from "../../shared/components/Button";
-import { useExerciseNames } from "../../shared/hooks/useExerciseNames";
-import { calculateE1RM, calculateSetVolume, formatVolume, formatWeight } from "../../shared/utils/training";
+import { useExercisesById } from "../../shared/hooks/useExerciseNames";
+import { getTranslatedExerciseName } from "../../shared/utils/exerciseTranslations";
+import {
+  calculateWorkoutSetVolume,
+  getWorkoutSetEffectiveWeight,
+} from "../../shared/utils/exerciseTracking";
+import { calculateE1RM, formatVolume, formatWeight } from "../../shared/utils/training";
 import { formatDate } from "../../shared/utils/format";
 
 interface WorkoutDetailProps {
@@ -18,7 +28,30 @@ interface ExerciseStats {
   bestSetIndex: number;
 }
 
-function computeExerciseStats(entry: WorkoutExercise): ExerciseStats {
+function formatTrackingValues(set: WorkoutSet, trackingType: ExerciseTrackingType): string {
+  const values: string[] = [];
+  if (trackingType === "BODYWEIGHT_REPS" && set.bodyweight !== null) {
+    values.push(`PDC ${set.bodyweight} kg`);
+  }
+  if (trackingType === "ASSISTED_BODYWEIGHT_REPS") {
+    if (set.assistance_weight !== null) values.push(`Assistance ${set.assistance_weight} kg`);
+    if (set.bodyweight !== null) values.push(`PDC ${set.bodyweight} kg`);
+  }
+  if (trackingType === "ADDED_BODYWEIGHT_REPS") {
+    if (set.added_weight !== null) values.push(`Lest ${set.added_weight} kg`);
+    if (set.bodyweight !== null) values.push(`PDC ${set.bodyweight} kg`);
+  }
+  if (set.duration_seconds !== null) values.push(`${set.duration_seconds} s`);
+  if (set.distance_meters !== null) values.push(`${set.distance_meters} m`);
+  if (set.calories !== null) values.push(`${set.calories} kcal`);
+  if (set.resistance_level !== null) values.push(`Niveau ${set.resistance_level}`);
+  return values.join(" · ") || "—";
+}
+
+function computeExerciseStats(
+  entry: WorkoutExercise,
+  trackingType: ExerciseTrackingType,
+): ExerciseStats {
   let totalVolume = 0;
   let bestWeight: number | null = null;
   let bestE1RM: number | null = null;
@@ -26,15 +59,21 @@ function computeExerciseStats(entry: WorkoutExercise): ExerciseStats {
 
   entry.sets.forEach((set, index) => {
     if (set.is_warmup) return;
-    const vol = calculateSetVolume(set.weight, set.reps);
-    if (vol !== null) totalVolume += vol;
-    const e1rm = calculateE1RM(set.weight, set.reps);
+    const effectiveWeight = getWorkoutSetEffectiveWeight(trackingType, set);
+    const vol = calculateWorkoutSetVolume(trackingType, set);
+    totalVolume += vol;
+    const supportsE1RM = [
+      "WEIGHT_REPS",
+      "ASSISTED_BODYWEIGHT_REPS",
+      "ADDED_BODYWEIGHT_REPS",
+    ].includes(trackingType);
+    const e1rm = supportsE1RM ? calculateE1RM(effectiveWeight, set.reps) : null;
     if (e1rm !== null && (bestE1RM === null || e1rm > bestE1RM)) {
       bestE1RM = e1rm;
       bestSetIndex = index;
     }
-    if (set.weight !== null && (bestWeight === null || set.weight > bestWeight)) {
-      bestWeight = set.weight;
+    if (effectiveWeight > 0 && (bestWeight === null || effectiveWeight > bestWeight)) {
+      bestWeight = effectiveWeight;
       if (e1rm === null) bestSetIndex = index;
     }
   });
@@ -43,12 +82,14 @@ function computeExerciseStats(entry: WorkoutExercise): ExerciseStats {
 }
 
 export function WorkoutDetail({ workout, onClose, onEdit, onDuplicate }: WorkoutDetailProps) {
-  const exerciseNames = useExerciseNames(workout.exercises.map((e) => e.exercise_id));
+  const exerciseIds = workout.exercises.map((exercise) => exercise.exercise_id);
+  const exercises = useExercisesById(exerciseIds);
 
   const totalVolume = workout.exercises.reduce((acc, entry) => {
+    const trackingType = exercises.get(entry.exercise_id)?.tracking_type || "WEIGHT_REPS";
     return acc + entry.sets.reduce((setAcc, set) => {
       if (set.is_warmup) return setAcc;
-      return setAcc + (calculateSetVolume(set.weight, set.reps) ?? 0);
+      return setAcc + calculateWorkoutSetVolume(trackingType, set);
     }, 0);
   }, 0);
 
@@ -80,11 +121,17 @@ export function WorkoutDetail({ workout, onClose, onEdit, onDuplicate }: Workout
 
       <div className="detail-stack">
         {workout.exercises.map((entry) => {
-          const stats = computeExerciseStats(entry);
+          const trackingType =
+            exercises.get(entry.exercise_id)?.tracking_type || "WEIGHT_REPS";
+          const stats = computeExerciseStats(entry, trackingType);
           return (
             <article className="detail-block" key={entry.id}>
               <div className="detail-block-header">
-                <h3>{exerciseNames.get(entry.exercise_id) || `Exercice #${entry.exercise_id}`}</h3>
+                <h3>
+                  {exercises.has(entry.exercise_id)
+                    ? getTranslatedExerciseName(exercises.get(entry.exercise_id)!)
+                    : `Exercice #${entry.exercise_id}`}
+                </h3>
                 <div className="exercise-stats-row">
                   {stats.totalVolume > 0 && (
                     <div className="exercise-stat">
@@ -114,17 +161,25 @@ export function WorkoutDetail({ workout, onClose, onEdit, onDuplicate }: Workout
                         <th>Série</th>
                         <th>Poids</th>
                         <th>Reps</th>
+                        <th>Suivi spécifique</th>
                         <th>Volume</th>
                         <th>e1RM</th>
-                        <th>RPE</th>
+                        <th>Difficulté</th>
                         <th>Repos</th>
                         <th>Flags</th>
                       </tr>
                     </thead>
                     <tbody>
                       {entry.sets.map((set, index) => {
-                        const setVolume = calculateSetVolume(set.weight, set.reps);
-                        const setE1RM = calculateE1RM(set.weight, set.reps);
+                        const setVolume = calculateWorkoutSetVolume(trackingType, set);
+                        const effectiveWeight = getWorkoutSetEffectiveWeight(trackingType, set);
+                        const setE1RM = [
+                          "WEIGHT_REPS",
+                          "ASSISTED_BODYWEIGHT_REPS",
+                          "ADDED_BODYWEIGHT_REPS",
+                        ].includes(trackingType)
+                          ? calculateE1RM(effectiveWeight, set.reps)
+                          : null;
                         const isBest = !set.is_warmup && index === stats.bestSetIndex;
                         return (
                           <tr key={set.id} className={isBest ? "set-row-best" : undefined}>
@@ -132,9 +187,10 @@ export function WorkoutDetail({ workout, onClose, onEdit, onDuplicate }: Workout
                               {index + 1}
                               {set.is_warmup ? <span className="set-flag-warmup"> E</span> : null}
                             </td>
-                            <td className={isBest ? "set-best" : undefined}>{set.weight !== null ? `${set.weight} kg` : "—"}</td>
+                            <td className={isBest ? "set-best" : undefined}>{effectiveWeight > 0 ? `${effectiveWeight} kg` : "—"}</td>
                             <td>{set.reps ?? "—"}</td>
-                            <td>{setVolume !== null ? `${setVolume} kg` : "—"}</td>
+                            <td>{formatTrackingValues(set, trackingType)}</td>
+                            <td>{setVolume > 0 ? `${setVolume}` : "—"}</td>
                             <td className={isBest ? "set-best" : undefined}>
                               {setE1RM !== null
                                 ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(setE1RM) + " kg"

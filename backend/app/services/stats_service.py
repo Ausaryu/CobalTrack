@@ -7,6 +7,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.exercise_tracking import (
+    ExerciseTrackingType,
+    SetTrackingMetrics,
+    calculate_set_tracking_metrics,
+)
 from app.models.exercise import Exercise
 from app.models.workout import WorkoutExercise, WorkoutSession, WorkoutSet
 from app.schemas.stats import (
@@ -24,8 +29,16 @@ class SetStatRow(NamedTuple):
     performed_at: date
     exercise_id: int
     exercise_name: str
+    tracking_type: ExerciseTrackingType
     weight: float | None
+    assistance_weight: float | None
+    added_weight: float | None
+    bodyweight: float | None
     reps: int | None
+    duration_seconds: int | None
+    distance_meters: float | None
+    calories: int | None
+    resistance_level: float | None
 
 
 @dataclass
@@ -46,15 +59,51 @@ class ProgressAggregate:
 
 
 def calculate_volume(weight: float | None, reps: int | None) -> float:
-    if weight is None or reps is None:
-        return 0.0
-    return round(weight * reps, 2)
+    return calculate_set_tracking_metrics(
+        ExerciseTrackingType.WEIGHT_REPS,
+        weight=weight,
+        reps=reps,
+    ).volume
 
 
 def calculate_e1rm(weight: float | None, reps: int | None) -> float:
-    if weight is None or reps is None or weight <= 0 or reps <= 0:
-        return 0.0
-    return round(weight * (1 + reps / 30), 2)
+    return calculate_set_tracking_metrics(
+        ExerciseTrackingType.WEIGHT_REPS,
+        weight=weight,
+        reps=reps,
+    ).e1rm
+
+
+def _tracking_metrics(row: SetStatRow) -> SetTrackingMetrics:
+    return calculate_set_tracking_metrics(
+        row.tracking_type,
+        weight=row.weight,
+        assistance_weight=row.assistance_weight,
+        added_weight=row.added_weight,
+        bodyweight=row.bodyweight,
+        reps=row.reps,
+        duration_seconds=row.duration_seconds,
+        distance_meters=row.distance_meters,
+        calories=row.calories,
+        resistance_level=row.resistance_level,
+    )
+
+
+def _has_performance(row: SetStatRow) -> bool:
+    return any(
+        value is not None
+        for value in (
+            row.weight,
+            row.assistance_weight,
+            row.added_weight,
+            row.bodyweight,
+            row.reps,
+            row.duration_seconds,
+            row.distance_meters,
+            row.calories,
+            row.resistance_level,
+        )
+    )
 
 
 def _set_rows(
@@ -66,8 +115,16 @@ def _set_rows(
             WorkoutSession.performed_at,
             WorkoutExercise.exercise_id,
             Exercise.name,
+            Exercise.tracking_type,
             WorkoutSet.weight,
+            WorkoutSet.assistance_weight,
+            WorkoutSet.added_weight,
+            WorkoutSet.bodyweight,
             WorkoutSet.reps,
+            WorkoutSet.duration_seconds,
+            WorkoutSet.distance_meters,
+            WorkoutSet.calories,
+            WorkoutSet.resistance_level,
         )
         .join(WorkoutExercise, WorkoutExercise.workout_session_id == WorkoutSession.id)
         .join(Exercise, Exercise.id == WorkoutExercise.exercise_id)
@@ -116,7 +173,7 @@ def get_dashboard(db: Session, user_id: int, today: date | None = None) -> Dashb
     rows = _set_rows(db, user_id)
     weekly_volume = round(
         sum(
-            calculate_volume(row.weight, row.reps)
+            _tracking_metrics(row).volume
             for row in rows
             if row.workout_id in weekly_workout_ids
         ),
@@ -127,9 +184,13 @@ def get_dashboard(db: Session, user_id: int, today: date | None = None) -> Dashb
     exercise_names: dict[int, str] = {}
     record_values: dict[int, RecordAggregate] = {}
     for row in rows:
+        metrics = _tracking_metrics(row)
         exercise_names[row.exercise_id] = row.exercise_name
-        exercise_totals[row.exercise_id] += calculate_volume(row.weight, row.reps)
-        if row.weight is None and row.reps is None:
+        exercise_totals[row.exercise_id] += metrics.volume
+        if not _has_performance(row) or row.tracking_type in {
+            ExerciseTrackingType.CARDIO,
+            ExerciseTrackingType.TIME,
+        }:
             continue
         record = record_values.setdefault(
             row.exercise_id,
@@ -139,9 +200,9 @@ def get_dashboard(db: Session, user_id: int, today: date | None = None) -> Dashb
             ),
         )
         record.performed_at = max(record.performed_at, row.performed_at)
-        record.max_weight = max(record.max_weight, row.weight or 0.0)
+        record.max_weight = max(record.max_weight, metrics.effective_weight)
         record.max_reps = max(record.max_reps, row.reps or 0)
-        record.best_e1rm = max(record.best_e1rm, calculate_e1rm(row.weight, row.reps))
+        record.best_e1rm = max(record.best_e1rm, metrics.e1rm)
 
     recent_records = [
         ExerciseRecord(
@@ -208,14 +269,13 @@ def get_exercise_progress(
             row.workout_id,
             ProgressAggregate(performed_at=row.performed_at),
         )
-        volume = calculate_volume(row.weight, row.reps)
-        e1rm = calculate_e1rm(row.weight, row.reps)
-        point.max_weight = max(point.max_weight, row.weight or 0.0)
-        point.total_volume += volume
-        point.best_e1rm = max(point.best_e1rm, e1rm)
-        max_weight = max(max_weight, row.weight or 0.0)
+        metrics = _tracking_metrics(row)
+        point.max_weight = max(point.max_weight, metrics.effective_weight)
+        point.total_volume += metrics.volume
+        point.best_e1rm = max(point.best_e1rm, metrics.e1rm)
+        max_weight = max(max_weight, metrics.effective_weight)
         max_reps = max(max_reps, row.reps or 0)
-        best_e1rm = max(best_e1rm, e1rm)
+        best_e1rm = max(best_e1rm, metrics.e1rm)
 
     history = [
         ExerciseProgressPoint(
